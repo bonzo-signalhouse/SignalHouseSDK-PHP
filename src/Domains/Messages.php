@@ -4,6 +4,14 @@ namespace SignalHouse\SDK\Domains;
 
 use SignalHouse\SDK\HttpClient;
 
+/**
+ * Messages domain.
+ *
+ * Date-range parameters (startDate, endDate) on list and analytics methods
+ * accept ISO-8601 date or timestamp strings. The server normalizes them to
+ * full UTC-day boundaries: startDate -> start-of-UTC-day, endDate -> end-of-
+ * UTC-day. The end day is always included; hourly resolution is not supported.
+ */
 class Messages
 {
     private HttpClient $client;
@@ -162,7 +170,6 @@ class Messages
         $this->client->require([
             'senderPhoneNumber' => $senderPhoneNumber,
             'recipientPhoneNumbers' => $recipientPhoneNumbers,
-            'messageBody' => $messageBody,
         ]);
 
         $multipart = [];
@@ -225,7 +232,6 @@ class Messages
         $this->client->require([
             'senderPhoneNumber' => $senderPhoneNumber,
             'recipientPhoneNumbers' => $recipientPhoneNumbers,
-            'messageBody' => $messageBody,
         ]);
 
         $multipart = [];

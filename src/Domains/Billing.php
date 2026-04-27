@@ -4,6 +4,14 @@ namespace SignalHouse\SDK\Domains;
 
 use SignalHouse\SDK\HttpClient;
 
+/**
+ * Billing domain.
+ *
+ * Date-range parameters (startDate, endDate) on list and history methods
+ * accept ISO-8601 date or timestamp strings. The server normalizes them to
+ * full UTC-day boundaries: startDate -> start-of-UTC-day, endDate -> end-of-
+ * UTC-day. The end day is always included; hourly resolution is not supported.
+ */
 class Billing
 {
     private HttpClient $client;
