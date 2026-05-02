@@ -249,6 +249,12 @@ MESSAGES  ($signalHouse->messages)
     Uses multipart/form-data automatically.
     Required: $senderPhoneNumber, $recipientPhoneNumbers, $messageBody
 
+  carrierIdLookup(string $phoneNumber, array $options = [])
+    Look up the carrier for a phone number.
+    Always performs a fresh lookup (not cached). Billed per request.
+    Required: $phoneNumber (10+ digits, no + prefix)
+    Returns: { phoneNumber, carrier, carrierFamily, carrierRegion, ported, type, degradedConfidence, cost }
+
 
 NOTIFICATIONS  ($signalHouse->notifications)
 --------------------------------------------------------------------------------

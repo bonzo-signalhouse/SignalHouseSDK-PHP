@@ -109,6 +109,7 @@ class Messages
      * @param string|null $statusCallbackUrl Optional callback URL for status updates
      * @param bool $enableShortlink Whether to enable shortlinks
      * @param array $options Additional request options
+     * @param bool $filterLandlinesAndInactiveNumbers Whether to filter out landline and inactive numbers before sending
      * @return array The response from the server
      */
     public function sendSMS(
@@ -117,7 +118,8 @@ class Messages
         string $messageBody,
         ?string $statusCallbackUrl = null,
         bool $enableShortlink = false,
-        array $options = []
+        array $options = [],
+        bool $filterLandlinesAndInactiveNumbers = false
     ): array {
         $this->client->require([
             'senderPhoneNumber' => $senderPhoneNumber,
@@ -131,6 +133,10 @@ class Messages
             'messageBody' => $messageBody,
             'enableShortlink' => $enableShortlink,
         ];
+
+        if ($filterLandlinesAndInactiveNumbers) {
+            $body['filterLandlinesAndInactiveNumbers'] = true;
+        }
 
         if ($statusCallbackUrl !== null) {
             $body['statusCallbackUrl'] = $statusCallbackUrl;
@@ -154,6 +160,7 @@ class Messages
      * @param bool $enableCompression Whether to enable image compression
      * @param array|null $images Optional image file paths
      * @param array $options Additional request options
+     * @param bool $filterLandlinesAndInactiveNumbers Whether to filter out landline and inactive numbers before sending
      * @return array The response from the server
      */
     public function sendMMS(
@@ -165,7 +172,8 @@ class Messages
         bool $enableShortlink = false,
         bool $enableCompression = true,
         ?array $images = null,
-        array $options = []
+        array $options = [],
+        bool $filterLandlinesAndInactiveNumbers = false
     ): array {
         $this->client->require([
             'senderPhoneNumber' => $senderPhoneNumber,
@@ -197,6 +205,9 @@ class Messages
 
         $multipart[] = ['name' => 'enableShortlink', 'contents' => $enableShortlink ? 'true' : 'false'];
         $multipart[] = ['name' => 'enableCompression', 'contents' => $enableCompression ? 'true' : 'false'];
+        if ($filterLandlinesAndInactiveNumbers) {
+            $multipart[] = ['name' => 'filterLandlinesAndInactiveNumbers', 'contents' => 'true'];
+        }
 
         return $this->multipartClient->request('/message/mms', array_merge([
             'method' => 'POST',
@@ -216,6 +227,7 @@ class Messages
      * @param bool $enableCompression Whether to enable image compression
      * @param array|null $images Optional image file paths
      * @param array $options Additional request options
+     * @param bool $filterLandlinesAndInactiveNumbers Whether to filter out landline and inactive numbers before sending
      * @return array The response from the server
      */
     public function sendGroupMessage(
@@ -227,7 +239,8 @@ class Messages
         bool $enableShortlink = false,
         bool $enableCompression = true,
         ?array $images = null,
-        array $options = []
+        array $options = [],
+        bool $filterLandlinesAndInactiveNumbers = false
     ): array {
         $this->client->require([
             'senderPhoneNumber' => $senderPhoneNumber,
@@ -259,10 +272,30 @@ class Messages
 
         $multipart[] = ['name' => 'enableShortlink', 'contents' => $enableShortlink ? 'true' : 'false'];
         $multipart[] = ['name' => 'enableCompression', 'contents' => $enableCompression ? 'true' : 'false'];
+        if ($filterLandlinesAndInactiveNumbers) {
+            $multipart[] = ['name' => 'filterLandlinesAndInactiveNumbers', 'contents' => 'true'];
+        }
 
         return $this->multipartClient->request('/message/groupMessage', array_merge([
             'method' => 'POST',
             'multipart' => $multipart,
+        ], $options));
+    }
+
+    /**
+     * Look up the carrier for a phone number. Always fresh (not cached). Billed per request.
+     *
+     * @param string $phoneNumber The phone number to look up (10+ digits, no + prefix)
+     * @param array $options Additional request options
+     * @return array The response from the server
+     */
+    public function carrierIdLookup(string $phoneNumber, array $options = []): array
+    {
+        $this->client->require(['phoneNumber' => $phoneNumber]);
+
+        return $this->client->request('/message/carrier-id', array_merge([
+            'method' => 'POST',
+            'body' => ['phoneNumber' => $phoneNumber],
         ], $options));
     }
 }
