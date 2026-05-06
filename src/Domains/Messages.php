@@ -71,6 +71,23 @@ class Messages
     }
 
     /**
+     * Get filter dropdown options (subgroups, brands, campaigns, phone numbers) for the
+     * Analytics page, scoped to a single group. Sourced from ClickHouse — only items with
+     * at least one message are returned.
+     *
+     * @param array $params Filter parameters (groupId required)
+     * @param array $options Additional request options
+     * @return array The response with subgroups, brands, campaigns, and phoneNumbers arrays
+     */
+    public function getAnalyticsFilterOptions(array $params = [], array $options = []): array
+    {
+        $queryString = $this->client->getQueryString($params);
+        return $this->client->request("/message/analytics/filter-options{$queryString}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
      * Get aggregated DNC (Do Not Contact) opt-out analytics with optional filters
      *
      * @param array $params Filter parameters (groupId, subgroupId, brandId, campaignId, phoneNumber, carrier, startDate, endDate)
@@ -143,6 +160,42 @@ class Messages
         }
 
         return $this->client->request('/message/sms', array_merge([
+            'method' => 'POST',
+            'body' => $body,
+        ], $options));
+    }
+
+    /**
+     * Send a P2P message via Rogue Mobile SMPP
+     *
+     * @param string $senderPhoneNumber The phone number to send from
+     * @param string|array $recipientPhoneNumbers The phone number(s) to send to
+     * @param string $messageBody The body of the P2P message
+     * @param string|null $statusCallbackUrl Optional URL to receive status callbacks
+     * @param array $options Additional request options
+     * @return array Standardized response
+     */
+    public function sendP2P(
+        string|array $recipientPhoneNumbers,
+        string $messageBody,
+        ?string $statusCallbackUrl = null,
+        array $options = []
+    ): array {
+        $this->client->require([
+            'recipientPhoneNumbers' => $recipientPhoneNumbers,
+            'messageBody' => $messageBody,
+        ]);
+
+        $body = [
+            'recipientPhoneNumber' => $recipientPhoneNumbers,
+            'messageBody' => $messageBody,
+        ];
+
+        if ($statusCallbackUrl !== null) {
+            $body['statusCallbackUrl'] = $statusCallbackUrl;
+        }
+
+        return $this->client->request('/message/p2p', array_merge([
             'method' => 'POST',
             'body' => $body,
         ], $options));
