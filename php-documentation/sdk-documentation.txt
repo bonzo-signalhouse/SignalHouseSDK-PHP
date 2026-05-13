@@ -342,9 +342,15 @@ SUBGROUPS  ($signalHouse->subgroups)
 
   createSubgroup(array $subgroupData, ?array $options)
     Create a new subgroup.
+    $subgroupData may include optional carrierIdFamily and carrierIdRegion.
+    Setting carrierIdFamily or carrierIdRegion requires signalhouse_api,
+    signalhouse_admin, signalhouse_user, api, admin, developer, or billing role.
 
   updateSubgroup(string $id, array $updateData, ?array $options)
     Update subgroup details.
+    $updateData may include optional carrierIdFamily and carrierIdRegion.
+    Setting carrierIdFamily or carrierIdRegion requires signalhouse_api,
+    signalhouse_admin, signalhouse_user, api, admin, developer, or billing role.
 
   deleteSubgroup(string $id, ?array $options)
     Delete (deactivate) a subgroup.

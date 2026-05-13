@@ -39,6 +39,21 @@ class Billing
     }
 
     /**
+     * Get payment history (wallet recharge transactions) with server-side pagination
+     *
+     * @param array $params Filter parameters (groupId, startDate, endDate, page, limit, timezone)
+     * @param array $options Additional request options
+     * @return array The response from the server with data and pagination metadata
+     */
+    public function getPaymentHistory(array $params = [], array $options = []): array
+    {
+        $queryString = $this->client->getQueryString($params);
+        return $this->client->request("/billing/wallet/paymentHistory{$queryString}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
      * Get the wallet information for a specific group
      *
      * @param string $groupId The ID of the group

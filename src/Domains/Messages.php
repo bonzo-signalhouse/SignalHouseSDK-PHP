@@ -28,7 +28,7 @@ class Messages
     /**
      * Get a list of messages with optional filters and pagination
      *
-     * @param array $params Filter parameters (id, campaignId, brandId, subgroupId, groupId, phoneNumber, senderPhoneNumber, recipientPhoneNumber, status, direction, messageType, carrier, startDate, endDate, sortField, sortOrder, page, limit)
+     * @param array $params Filter parameters (id, campaignId, brandId, subgroupId, groupId, phoneNumber, senderPhoneNumber, recipientPhoneNumber, status, direction, messageType, carrier, startDate, endDate, sortField, sortOrder, page, limit). messageType accepts a single value or array (e.g. ["SMS", "MMS"]); allowed values are SMS, MMS, RCS, WHATSAPP, VIBER, P2P. When omitted, defaults to all non-P2P types.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -83,6 +83,39 @@ class Messages
     {
         $queryString = $this->client->getQueryString($params);
         return $this->client->request("/message/analytics/filter-options{$queryString}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
+     * Get a paginated breakdown of message metrics grouped by subgroup. Each row carries the
+     * full set of sms/mms/p2p metric columns plus smsOptOuts and mmsOptOuts (sourced from
+     * the DNC analytics MV — P2P has no opt-outs) so callers can apply channel toggles client-side.
+     *
+     * @param array $params Filter parameters (groupId required, plus optional subgroupId/brandId/campaignId/phoneNumber/carrier/startDate/endDate/page/limit/channel). limit is capped at 50 per page. channel: "tenDLC" | "p2p" | "both" (default "both") — scopes ORDER BY + row inclusion so a P2P-only caller doesn't get pages dominated by 10DLC-heavy rows with no visible activity.
+     * @param array $options Additional request options
+     * @return array { rows, totalCount, page, limit }
+     */
+    public function getAnalyticsBySubgroup(array $params = [], array $options = []): array
+    {
+        $queryString = $this->client->getQueryString($params);
+        return $this->client->request("/message/analytics/by-subgroup{$queryString}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
+     * Get a paginated breakdown of failed messages grouped by error code. Each row contains
+     * per-channel (sms/mms/p2p) error counts plus an enriched description.
+     *
+     * @param array $params Filter parameters (groupId required, plus optional subgroupId/brandId/campaignId/phoneNumber/carrier/startDate/endDate/page/limit/channel). limit is capped at 50 per page. channel: "tenDLC" | "p2p" | "both" (default "both") — scopes ORDER BY + totalCount so a P2P-only caller doesn't get pages dominated by codes with only 10DLC errors.
+     * @param array $options Additional request options
+     * @return array { rows, totalCount, totalErrors: { sms, mms, p2p, all }, page, limit }
+     */
+    public function getAnalyticsByErrorCode(array $params = [], array $options = []): array
+    {
+        $queryString = $this->client->getQueryString($params);
+        return $this->client->request("/message/analytics/by-error-code{$queryString}", array_merge([
             'method' => 'GET',
         ], $options));
     }

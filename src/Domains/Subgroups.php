@@ -33,7 +33,7 @@ class Subgroups
     /**
      * Create a new subgroup
      *
-     * @param array $subgroupData The subgroup data (groupId, subgroupName, contact info, address, etc.)
+     * @param array $subgroupData The subgroup data (groupId, subgroupName, contact info, address, optional carrierIdFamily/carrierIdRegion, etc.). Setting carrierIdFamily/carrierIdRegion requires signalhouse_api, signalhouse_admin, signalhouse_user, api, admin, developer, or billing role.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -50,7 +50,7 @@ class Subgroups
      * Update an existing subgroup
      *
      * @param string $id The subgroup ID
-     * @param array $updateData The data to update
+     * @param array $updateData The data to update, including optional carrierIdFamily/carrierIdRegion. Setting carrierIdFamily/carrierIdRegion requires signalhouse_api, signalhouse_admin, signalhouse_user, api, admin, developer, or billing role.
      * @param array $options Additional request options
      * @return array The response from the server
      */
