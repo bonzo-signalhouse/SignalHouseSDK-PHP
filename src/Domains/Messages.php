@@ -235,6 +235,44 @@ class Messages
     }
 
     /**
+     * Get the details of a P2P batch by its ID
+     *
+     * @param string $batchId The ID of the P2P batch to retrieve
+     * @param array $options Additional request options
+     * @return array The response from the server
+     */
+    public function getP2PBatch(string $batchId, array $options = []): array
+    {
+        $this->client->require(['batchId' => $batchId]);
+        $safeBatchId = rawurlencode($batchId);
+        return $this->client->request("/message/p2p/batches/{$safeBatchId}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
+     * Fetch the latest upstream carrier delivery report for a set of messages by ID
+     *
+     * Useful for reconciling messages stuck in a non-terminal state. SMS and MMS messages are looked
+     * up against the carrier; other message types are returned with their stored status.
+     *
+     * @param string[] $messageIds The message IDs to fetch carrier delivery reports for (1-100)
+     * @param array $options Additional request options
+     * @return array Standardized response containing an array of carrier delivery reports
+     */
+    public function getDeliveryReports(array $messageIds, array $options = []): array
+    {
+        $this->client->require([
+            'messageIds' => $messageIds,
+        ]);
+
+        return $this->client->request('/message/delivery-report', array_merge([
+            'method' => 'POST',
+            'body' => ['messageIds' => $messageIds],
+        ], $options));
+    }
+
+    /**
      * Send an MMS message with optional media attachments
      *
      * @param string $senderPhoneNumber The phone number to send from

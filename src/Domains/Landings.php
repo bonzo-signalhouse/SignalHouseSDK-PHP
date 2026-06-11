@@ -34,6 +34,22 @@ class Landings
     }
 
     /**
+     * Get a public (published) landing page by its ID. This endpoint is public and does not require authentication.
+     *
+     * @param string $landingId The ID of the public landing page
+     * @param array $options Additional request options
+     * @return array The response from the server
+     */
+    public function getPublicLanding(string $landingId, array $options = []): array
+    {
+        $this->client->require(['landingId' => $landingId]);
+        $safeLandingId = rawurlencode($landingId);
+        return $this->client->request("/landing/public/{$safeLandingId}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
      * Get a landing page by its associated brand ID
      *
      * @param string $brandId The brand ID

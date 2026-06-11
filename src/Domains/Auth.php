@@ -64,4 +64,17 @@ class Auth
             'method' => 'GET',
         ], $options));
     }
+
+    /**
+     * Log out all other users in the caller's active group
+     *
+     * @param array $options Additional request options
+     * @return array The response containing loggedOutCount
+     */
+    public function logoutAll(array $options = []): array
+    {
+        return $this->client->request('/auth/logout-all', array_merge([
+            'method' => 'POST',
+        ], $options));
+    }
 }

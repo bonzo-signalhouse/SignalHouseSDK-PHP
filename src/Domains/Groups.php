@@ -81,7 +81,7 @@ class Groups
      * Update a group with the specified data
      *
      * @param string $id The ID of the group
-     * @param array $groupData The data to update
+     * @param array $groupData The data to update. Optional CNP fields: cspId (string|null), defaultCnpSubgroupId (string|null)
      * @param array $options Additional request options
      * @return array The response from the server
      */
