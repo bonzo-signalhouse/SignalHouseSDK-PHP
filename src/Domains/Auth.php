@@ -50,6 +50,41 @@ class Auth
     }
 
     /**
+     * Request a password-reset link be emailed to the given address (public).
+     * Always succeeds regardless of whether an account exists for the email, so it
+     * cannot be used to enumerate registered emails.
+     *
+     * @param string $email The email address to send a reset link to
+     * @param array $options Additional request options
+     * @return array The response from the server (['success' => true])
+     */
+    public function forgotPassword(string $email, array $options = []): array
+    {
+        $this->client->require(['email' => $email]);
+        return $this->client->request('/auth/forgot-password', array_merge([
+            'method' => 'POST',
+            'body' => ['email' => $email],
+        ], $options));
+    }
+
+    /**
+     * Reset a password using the single-use token from a reset email (public)
+     *
+     * @param string $token The single-use reset token from the email link
+     * @param string $password The new password to set (min 8 characters)
+     * @param array $options Additional request options
+     * @return array The response from the server (['success' => true])
+     */
+    public function resetPasswordWithToken(string $token, string $password, array $options = []): array
+    {
+        $this->client->require(['token' => $token, 'password' => $password]);
+        return $this->client->request('/auth/reset-password', array_merge([
+            'method' => 'POST',
+            'body' => ['token' => $token, 'password' => $password],
+        ], $options));
+    }
+
+    /**
      * Get token login history for a group or user
      *
      * @param array $params Filter parameters (groupId, userId, page, limit)
@@ -75,6 +110,24 @@ class Auth
     {
         return $this->client->request('/auth/logout-all', array_merge([
             'method' => 'POST',
+        ], $options));
+    }
+
+    /**
+     * Mint a single-use, short-lived external-link token for the authenticated caller.
+     * The token is handed to the GHL/Shopify backend so it can link the caller's existing
+     * V2 group to its tenant.
+     *
+     * @param string $product The external system to link to ("ghl" or "shopify")
+     * @param array $options Additional request options
+     * @return array The response from the server (['token' => ...])
+     */
+    public function requestExternalLinkToken(string $product, array $options = []): array
+    {
+        $this->client->require(['product' => $product]);
+        return $this->client->request('/auth/external-link-token', array_merge([
+            'method' => 'POST',
+            'body' => ['product' => $product],
         ], $options));
     }
 }

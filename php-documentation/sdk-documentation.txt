@@ -139,6 +139,9 @@ BRANDS  ($signalHouse->brands)
   createExternalVetting(string $brandId, ?array $options)
     Submit brand for external vetting.
 
+  importExternalVetting(string $brandId, string $vettingProviderId, string $vettingId, ?string $vettingToken, ?array $options)
+    Import an existing external vetting record (not billable).
+
   revetBrand(string $brandId, ?array $options)
     Resubmit brand for vetting.
 

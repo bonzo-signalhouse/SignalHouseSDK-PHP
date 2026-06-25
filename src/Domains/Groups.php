@@ -58,6 +58,39 @@ class Groups
                         'method' => 'DELETE',
                     ], $options));
                 }
+
+                /**
+                 * Link an external tenant (GHL/Shopify) to a V2 group (server-to-server).
+                 * Exchanges a single-use link token for a canonical group, adopting an empty
+                 * portal group, repointing to an existing group, or flagging for manual review.
+                 *
+                 * @param string $linkToken The single-use external-link token minted by the portal user
+                 * @param string $externalSystem The external system ("ghl" or "shopify")
+                 * @param string $externalId The external tenant identifier
+                 * @param string|null $existingGroupId An existing V2 group ID to repoint to, if any
+                 * @param array $options Additional request options
+                 * @return array The link outcome (['status' => ..., 'canonicalGroupId' => ..., ...])
+                 */
+                public function linkExternal(string $linkToken, string $externalSystem, string $externalId, ?string $existingGroupId = null, array $options = []): array
+                {
+                    $this->client->require([
+                        'linkToken' => $linkToken,
+                        'externalSystem' => $externalSystem,
+                        'externalId' => $externalId,
+                    ]);
+                    $body = [
+                        'linkToken' => $linkToken,
+                        'externalSystem' => $externalSystem,
+                        'externalId' => $externalId,
+                    ];
+                    if ($existingGroupId !== null) {
+                        $body['existingGroupId'] = $existingGroupId;
+                    }
+                    return $this->client->request('/group/link-external', array_merge([
+                        'method' => 'POST',
+                        'body' => $body,
+                    ], $options));
+                }
             };
         }
     }

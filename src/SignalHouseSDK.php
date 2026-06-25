@@ -16,6 +16,7 @@ use SignalHouse\SDK\Domains\Shortlinks;
 use SignalHouse\SDK\Domains\Subgroups;
 use SignalHouse\SDK\Domains\Subscriptions;
 use SignalHouse\SDK\Domains\Users;
+use SignalHouse\SDK\Domains\Voice;
 use SignalHouse\SDK\Domains\Webhooks;
 
 class SignalHouseSDK
@@ -34,6 +35,7 @@ class SignalHouseSDK
     public Subgroups $subgroups;
     public Subscriptions $subscriptions;
     public Users $users;
+    public Voice $voice;
     public Webhooks $webhooks;
 
     /**
@@ -70,6 +72,7 @@ class SignalHouseSDK
         $this->subgroups = new Subgroups($client, $enableAdmin);
         $this->subscriptions = new Subscriptions($client, $enableAdmin);
         $this->users = new Users($client, $enableAdmin);
+        $this->voice = new Voice($client, $enableAdmin);
         $this->webhooks = new Webhooks($client, $enableAdmin);
     }
 }

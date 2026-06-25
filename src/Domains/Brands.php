@@ -99,6 +99,34 @@ class Brands
     }
 
     /**
+     * Import an existing external vetting record for a brand
+     *
+     * Unlike createExternalVetting (which orders a new, billable vetting), this attaches a vetting
+     * the brand already completed directly with the provider, using the provider-issued vettingId
+     * and vettingToken. It is synchronous and not billable.
+     *
+     * @param string $brandId The ID of the brand
+     * @param string $vettingProviderId The external vetting provider (AEGIS, WMC, CV)
+     * @param string $vettingId The provider-issued vetting / transaction ID to import
+     * @param string|null $vettingToken The provider-issued vetting token (required by some providers, e.g. AEGIS)
+     * @param array $options Additional request options
+     * @return array The response from the server
+     */
+    public function importExternalVetting(string $brandId, string $vettingProviderId, string $vettingId, ?string $vettingToken = null, array $options = []): array
+    {
+        $this->client->require(['brandId' => $brandId, 'vettingProviderId' => $vettingProviderId, 'vettingId' => $vettingId]);
+        $safeBrandId = rawurlencode($brandId);
+        $body = ['vettingProviderId' => $vettingProviderId, 'vettingId' => $vettingId];
+        if ($vettingToken !== null) {
+            $body['vettingToken'] = $vettingToken;
+        }
+        return $this->client->request("/brand/externalvetting/import/{$safeBrandId}", array_merge([
+            'method' => 'POST',
+            'body' => $body,
+        ], $options));
+    }
+
+    /**
      * Update a brand's information
      *
      * @param string $brandId The ID of the brand
