@@ -205,6 +205,7 @@ class Messages
      * @param string|array $recipientPhoneNumbers The phone number(s) to send to
      * @param string $messageBody The body of the P2P message
      * @param string|null $statusCallbackUrl Optional URL to receive status callbacks
+     * @param bool|null $useSignalHouseShortlinks When false, SignalHouse applies no link-shortening or text-spin and your pre-spun links/content are sent verbatim (bring-your-own spinner). Defaults to true.
      * @param array $options Additional request options
      * @return array Standardized response
      */
@@ -212,6 +213,7 @@ class Messages
         string|array $recipientPhoneNumbers,
         string $messageBody,
         ?string $statusCallbackUrl = null,
+        ?bool $useSignalHouseShortlinks = null,
         array $options = []
     ): array {
         $this->client->require([
@@ -226,6 +228,10 @@ class Messages
 
         if ($statusCallbackUrl !== null) {
             $body['statusCallbackUrl'] = $statusCallbackUrl;
+        }
+
+        if ($useSignalHouseShortlinks !== null) {
+            $body['useSignalHouseShortlinks'] = $useSignalHouseShortlinks;
         }
 
         return $this->client->request('/message/p2p', array_merge([
