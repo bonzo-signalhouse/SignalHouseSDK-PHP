@@ -82,6 +82,22 @@ class Numbers
     }
 
     /**
+     * Get the portal-parity health score (1–10) for an owned phone number
+     *
+     * @param string $phoneNumber Owned phone number to score (11 digits, no + prefix)
+     * @param array $options Additional request options
+     * @return array Health score payload with sevenDay and thirtyDay breakdowns
+     */
+    public function getNumberHealth(string $phoneNumber, array $options = []): array
+    {
+        $this->client->require(['phoneNumber' => $phoneNumber]);
+        $queryString = $this->client->getQueryString(['phoneNumber' => $phoneNumber]);
+        return $this->client->request("/number/health{$queryString}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
      * Get available phone numbers for purchase
      *
      * @param array $params Filter parameters (smsEnabled, mmsEnabled, voiceEnabled, country, state, npa, nxx, phoneNumber, limit, page)
@@ -113,6 +129,47 @@ class Numbers
         return $this->client->request('/number', array_merge([
             'method' => 'POST',
             'body' => ['phoneNumbers' => $phoneNumbers, 'subgroupId' => $subgroupId],
+        ], $options));
+    }
+
+    /**
+     * Purchase one or more Toll-Free numbers via the asynchronous resource-request flow.
+     *
+     * Toll-Free numbers are ordered by quantity (1-10, not picked individually) and provisioned
+     * asynchronously; per-number completion is delivered via webhook/polling, not in this response.
+     * Poll the returned orderId with getTollFreeOrderStatus.
+     *
+     * @param int $quantity The number of Toll-Free numbers to purchase (1-10)
+     * @param string $subgroupId The subgroup the purchased numbers are assigned to
+     * @param array $options Additional request options
+     * @return array Response resolving to { message, orderId } once the request is queued
+     */
+    public function purchaseTollFreeNumbers(int $quantity, string $subgroupId, array $options = []): array
+    {
+        $this->client->require(['subgroupId' => $subgroupId]);
+        return $this->client->request('/number/toll-free', array_merge([
+            'method' => 'POST',
+            'body' => ['quantity' => $quantity, 'subgroupId' => $subgroupId],
+        ], $options));
+    }
+
+    /**
+     * Read the outcome of a Toll-Free number purchase by its order ID.
+     *
+     * Reports per-number ready/provisioning/failed counts (plus failure reasons) and the
+     * provisioned numbers; numbers fills in as the order completes, so poll until the order
+     * reaches a terminal state.
+     *
+     * @param string $orderId The order id returned by purchaseTollFreeNumbers
+     * @param array $options Additional request options
+     * @return array Response resolving to { orderId, counts, failures, numbers }
+     */
+    public function getTollFreeOrderStatus(string $orderId, array $options = []): array
+    {
+        $this->client->require(['orderId' => $orderId]);
+        $safeOrderId = rawurlencode($orderId);
+        return $this->client->request("/number/toll-free/order/{$safeOrderId}", array_merge([
+            'method' => 'GET',
         ], $options));
     }
 

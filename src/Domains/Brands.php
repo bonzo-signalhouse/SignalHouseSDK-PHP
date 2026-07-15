@@ -4,6 +4,12 @@ namespace SignalHouse\SDK\Domains;
 
 use SignalHouse\SDK\HttpClient;
 
+/**
+ * 10DLC Brand registration operations.
+ *
+ * Brand lookup id: carrier Brand ID (B… or TFNB…), Mongo _id, or internal reference UUID.
+ * Read/create responses return brandId: null for pending brands — poll GET /brand?id=<Mongo _id>.
+ */
 class Brands
 {
     private HttpClient $client;
@@ -20,7 +26,9 @@ class Brands
     /**
      * Get a list of brands with optional filters
      *
-     * @param array $params Filter parameters (id, subgroupId, groupId, page, limit, status)
+     * @param array $params Filter parameters (id, subgroupId, groupId, page, limit, status, registrationType).
+     *                      id is a brand lookup id. registrationType filters by "TEN_DLC" or "TOLL_FREE".
+     *                      Responses may include brandId: null for pending brands.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -35,7 +43,7 @@ class Brands
     /**
      * Get external vetting information for a brand
      *
-     * @param string $brandId The ID of the brand
+     * @param string $brandId Brand lookup id (carrier Brand ID, Mongo _id, or internal reference)
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -65,10 +73,31 @@ class Brands
     }
 
     /**
+     * Create a new Toll-Free (TFN) brand
+     *
+     * registrationType is forced to TOLL_FREE server-side; TFN-specific fields live under
+     * $brandData['tollFree'] (businessRegistrationType, legalEntityType, taxId, countryCode,
+     * supportPhone, and optional taxIdIssuingCountry / businessDBA).
+     *
+     * @param array $brandData The toll-free brand data (see JS SDK CreateTollFreeBrandData for fields)
+     * @param array $options Additional request options
+     * @return array The response from the server. For Toll-Free, brandId is a TFNB-prefixed id when
+     *               assigned; otherwise null — poll by _id.
+     */
+    public function createTollFreeBrand(array $brandData, array $options = []): array
+    {
+        $this->client->require(['brandData' => $brandData]);
+        return $this->client->request('/brand/toll-free', array_merge([
+            'method' => 'POST',
+            'body' => $brandData,
+        ], $options));
+    }
+
+    /**
      * Transfer one or more brands to a different subgroup
      *
      * @param string $subgroupId The target subgroup ID
-     * @param array $brandIds Array of brand IDs to transfer
+     * @param array $brandIds Brand lookup ids to transfer
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -85,7 +114,7 @@ class Brands
     /**
      * Create external vetting for a brand
      *
-     * @param string $brandId The ID of the brand
+     * @param string $brandId Brand lookup id (carrier Brand ID, Mongo _id, or internal reference)
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -105,7 +134,7 @@ class Brands
      * the brand already completed directly with the provider, using the provider-issued vettingId
      * and vettingToken. It is synchronous and not billable.
      *
-     * @param string $brandId The ID of the brand
+     * @param string $brandId Brand lookup id (carrier Brand ID, Mongo _id, or internal reference)
      * @param string $vettingProviderId The external vetting provider (AEGIS, WMC, CV)
      * @param string $vettingId The provider-issued vetting / transaction ID to import
      * @param string|null $vettingToken The provider-issued vetting token (required by some providers, e.g. AEGIS)
@@ -129,8 +158,11 @@ class Brands
     /**
      * Update a brand's information
      *
-     * @param string $brandId The ID of the brand
-     * @param array $brandData The data to update
+     * @param string $brandId Brand lookup id (carrier Brand ID, Mongo _id, or internal reference)
+     * @param array $brandData The data to update. For a Toll-Free brand, pass the editable Toll-Free
+     *                         fields under a 'tollFree' sub-array (legalEntityType,
+     *                         businessRegistrationType, taxId, countryCode, supportPhone,
+     *                         taxIdIssuingCountry, businessDBA); subgroupId is immutable.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -147,7 +179,7 @@ class Brands
     /**
      * Revet a brand that is in UNVERIFIED status
      *
-     * @param string $brandId The ID of the brand
+     * @param string $brandId Brand lookup id (carrier Brand ID, Mongo _id, or internal reference)
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -163,7 +195,7 @@ class Brands
     /**
      * Delete a brand (mark as DELETED)
      *
-     * @param string $brandId The ID of the brand
+     * @param string $brandId Brand lookup id (carrier Brand ID, Mongo _id, or internal reference)
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -179,7 +211,7 @@ class Brands
     /**
      * Get appeal history for a brand
      *
-     * @param string $brandId The ID of the brand
+     * @param string $brandId Brand lookup id (carrier Brand ID, Mongo _id, or internal reference)
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -195,7 +227,7 @@ class Brands
     /**
      * Submit an appeal for a brand
      *
-     * @param string $brandId The ID of the brand
+     * @param string $brandId Brand lookup id (carrier Brand ID, Mongo _id, or internal reference)
      * @param array $appealCategories Array of appeal category strings
      * @param string $explanation The appeal explanation
      * @param string|resource $file The appeal file path or file resource

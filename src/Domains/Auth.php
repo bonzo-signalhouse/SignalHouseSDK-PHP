@@ -114,6 +114,19 @@ class Auth
     }
 
     /**
+     * Get the Group ID associated with the caller's JWT (their active group)
+     *
+     * @param array $options Additional request options
+     * @return array The response containing ['groupId' => ...]
+     */
+    public function getGroupId(array $options = []): array
+    {
+        return $this->client->request('/auth/group-id', array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
      * Mint a single-use, short-lived external-link token for the authenticated caller.
      * The token is handed to the GHL/Shopify backend so it can link the caller's existing
      * V2 group to its tenant.

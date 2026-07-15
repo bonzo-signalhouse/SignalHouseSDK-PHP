@@ -279,6 +279,10 @@ NUMBERS  ($signalHouse->numbers)
       ?int $page, ?int $limit, ?array $options)
     List your phone numbers with filters.
 
+  getNumberHealth(string $phoneNumber, ?array $options)
+    Get the portal-parity health score (1–10) for an owned phone number.
+    Returns sevenDay and thirtyDay breakdowns matching the portal.
+
   getAvailablePhoneNumbers(?bool $smsEnabled, ?bool $mmsEnabled,
       ?bool $voiceEnabled, ?string $country, ?string $state,
       ?string $npa, ?string $nxx, ?string $phoneNumber,

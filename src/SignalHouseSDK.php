@@ -15,6 +15,7 @@ use SignalHouse\SDK\Domains\Onboarding;
 use SignalHouse\SDK\Domains\Shortlinks;
 use SignalHouse\SDK\Domains\Subgroups;
 use SignalHouse\SDK\Domains\Subscriptions;
+use SignalHouse\SDK\Domains\Tickets;
 use SignalHouse\SDK\Domains\Users;
 use SignalHouse\SDK\Domains\Voice;
 use SignalHouse\SDK\Domains\Webhooks;
@@ -34,6 +35,7 @@ class SignalHouseSDK
     public Shortlinks $shortlinks;
     public Subgroups $subgroups;
     public Subscriptions $subscriptions;
+    public Tickets $tickets;
     public Users $users;
     public Voice $voice;
     public Webhooks $webhooks;
@@ -61,7 +63,7 @@ class SignalHouseSDK
         $this->auth = new Auth($client, $enableAdmin);
         $this->billing = new Billing($client, $enableAdmin);
         $this->brands = new Brands($client, $multipartClient, $enableAdmin);
-        $this->campaigns = new Campaigns($client, $enableAdmin);
+        $this->campaigns = new Campaigns($client, $multipartClient, $enableAdmin);
         $this->groups = new Groups($client, $enableAdmin);
         $this->landings = new Landings($client, $multipartClient, $enableAdmin);
         $this->messages = new Messages($client, $multipartClient, $enableAdmin);
@@ -71,6 +73,7 @@ class SignalHouseSDK
         $this->shortlinks = new Shortlinks($client, $enableAdmin);
         $this->subgroups = new Subgroups($client, $enableAdmin);
         $this->subscriptions = new Subscriptions($client, $enableAdmin);
+        $this->tickets = new Tickets($client, $enableAdmin);
         $this->users = new Users($client, $enableAdmin);
         $this->voice = new Voice($client, $enableAdmin);
         $this->webhooks = new Webhooks($client, $enableAdmin);

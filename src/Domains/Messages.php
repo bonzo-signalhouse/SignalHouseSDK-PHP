@@ -28,7 +28,7 @@ class Messages
     /**
      * Get a list of messages with optional filters and pagination
      *
-     * @param array $params Filter parameters (id, campaignId, brandId, subgroupId, groupId, phoneNumber, senderPhoneNumber, recipientPhoneNumber, status, direction, messageType, carrier, startDate, endDate, sortField, sortOrder, page, limit). messageType accepts a single value or array (e.g. ["SMS", "MMS"]); allowed values are SMS, MMS, RCS, WHATSAPP, VIBER, P2P. When omitted, defaults to all non-P2P types.
+     * @param array $params Filter parameters (id, campaignId, brandId, subgroupId, groupId, phoneNumber, senderPhoneNumber, recipientPhoneNumber, status, direction, messageType, channel, carrier, startDate, endDate, sortField, sortOrder, page, limit). messageType accepts a single value or array (e.g. ["SMS", "MMS"]); allowed values are SMS, MMS, RCS, WHATSAPP, VIBER, P2P. When omitted, defaults to all non-P2P types. channel filters by "tenDLC", "tollFree", or "p2p" (single value or array); older messages without a stored channel count as tenDLC.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -43,7 +43,7 @@ class Messages
     /**
      * Get aggregated analytics for messages with optional filters
      *
-     * @param array $params Filter parameters (groupId, subgroupId, brandId, campaignId, phoneNumber, carrier, startDate, endDate)
+     * @param array $params Filter parameters (groupId, subgroupId, brandId, campaignId, phoneNumber, carrier, startDate, endDate, channel). channel filters by "tenDLC", "tollFree", or "p2p" (single value or array); a tenDLC selection also includes older messages with no channel, and p2p is matched by carrier.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -58,7 +58,7 @@ class Messages
     /**
      * Get detailed analytics snapshot records for charting and aggregation
      *
-     * @param array $params Filter parameters (groupId, subgroupId, brandId, campaignId, phoneNumber, carrier, startDate, endDate)
+     * @param array $params Filter parameters (groupId, subgroupId, brandId, campaignId, phoneNumber, carrier, startDate, endDate, channel). channel filters by "tenDLC", "tollFree", or "p2p" (single value or array); a tenDLC selection also includes older messages with no channel, and p2p is a real channel here.
      * @param array $options Additional request options
      * @return array The response from the server with an array of analytics snapshot records
      */
@@ -92,7 +92,7 @@ class Messages
      * full set of sms/mms/p2p metric columns plus smsOptOuts and mmsOptOuts (sourced from
      * the DNC analytics MV — P2P has no opt-outs) so callers can apply channel toggles client-side.
      *
-     * @param array $params Filter parameters (groupId required, plus optional subgroupId/brandId/campaignId/phoneNumber/carrier/startDate/endDate/page/limit/channel). limit is capped at 50 per page. channel: "tenDLC" | "p2p" | "both" (default "both") — scopes ORDER BY + row inclusion so a P2P-only caller doesn't get pages dominated by 10DLC-heavy rows with no visible activity.
+     * @param array $params Filter parameters (groupId required, plus optional subgroupId/brandId/campaignId/phoneNumber/carrier/startDate/endDate/page/limit/channel). limit is capped at 50 per page. channel: "both" (default, all activity) or "tenDLC" | "tollFree" | "p2p" (single value or array) — scopes ORDER BY + row inclusion by the stored channel column so a single-channel caller doesn't get pages dominated by other channels; toll-free is kept separate from 10DLC.
      * @param array $options Additional request options
      * @return array { rows, totalCount, page, limit }
      */
@@ -108,7 +108,7 @@ class Messages
      * Get a paginated breakdown of failed messages grouped by error code. Each row contains
      * per-channel (sms/mms/p2p) error counts plus an enriched description.
      *
-     * @param array $params Filter parameters (groupId required, plus optional subgroupId/brandId/campaignId/phoneNumber/carrier/startDate/endDate/page/limit/channel). limit is capped at 50 per page. channel: "tenDLC" | "p2p" | "both" (default "both") — scopes ORDER BY + totalCount so a P2P-only caller doesn't get pages dominated by codes with only 10DLC errors.
+     * @param array $params Filter parameters (groupId required, plus optional subgroupId/brandId/campaignId/phoneNumber/carrier/startDate/endDate/page/limit/channel). limit is capped at 50 per page. channel: "both" (default, every code) or "tenDLC" | "tollFree" | "p2p" (single value or array) — scopes ORDER BY + totalCount by the stored channel column; when one channel is selected, totalErrors reflects only that channel.
      * @param array $options Additional request options
      * @return array { rows, totalCount, totalErrors: { sms, mms, p2p, all }, page, limit }
      */
@@ -123,7 +123,7 @@ class Messages
     /**
      * Get aggregated DNC (Do Not Contact) opt-out analytics with optional filters
      *
-     * @param array $params Filter parameters (groupId, subgroupId, brandId, campaignId, phoneNumber, carrier, startDate, endDate)
+     * @param array $params Filter parameters (groupId, subgroupId, brandId, campaignId, phoneNumber, carrier, startDate, endDate, channel). channel filters by "tenDLC" or "tollFree" (single value or array); opt-outs are A2P-only, so "p2p" applies no filter, and a tenDLC selection also includes older opt-outs with no channel.
      * @param array $options Additional request options
      * @return array The response from the server with totals, byDate, byPhoneNumber, byCarrier
      */
@@ -138,7 +138,7 @@ class Messages
     /**
      * Get paginated Do Not Call records with optional filters
      *
-     * @param array $params Filter parameters (groupId, subgroupId, brandId, campaignId, phoneNumber, carrier, startDate, endDate, page, limit, sortField, sortOrder)
+     * @param array $params Filter parameters (groupId, subgroupId, brandId, campaignId, phoneNumber, carrier, startDate, endDate, page, limit, sortField, sortOrder, channel). channel filters by "tenDLC" or "tollFree" (single value or array); opt-outs are A2P-only, so "p2p" applies no filter, and a tenDLC selection also includes older opt-outs with no channel.
      * @param array $options Additional request options
      * @return array The response from the server with paginated DNC records
      */
