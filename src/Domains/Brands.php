@@ -77,7 +77,7 @@ class Brands
      *
      * registrationType is forced to TOLL_FREE server-side; TFN-specific fields live under
      * $brandData['tollFree'] (businessRegistrationType, legalEntityType, taxId, countryCode,
-     * supportPhone, and optional taxIdIssuingCountry / businessDBA).
+     * supportPhone, and optional taxIdIssuingCountry / businessDBA / businessWebsite).
      *
      * @param array $brandData The toll-free brand data (see JS SDK CreateTollFreeBrandData for fields)
      * @param array $options Additional request options
@@ -162,7 +162,7 @@ class Brands
      * @param array $brandData The data to update. For a Toll-Free brand, pass the editable Toll-Free
      *                         fields under a 'tollFree' sub-array (legalEntityType,
      *                         businessRegistrationType, taxId, countryCode, supportPhone,
-     *                         taxIdIssuingCountry, businessDBA); subgroupId is immutable.
+     *                         taxIdIssuingCountry, businessDBA, businessWebsite); subgroupId is immutable.
      * @param array $options Additional request options
      * @return array The response from the server
      */
