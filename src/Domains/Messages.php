@@ -153,6 +153,16 @@ class Messages
     /**
      * Send an SMS message
      *
+     * The response reports the send outcome via requestedRecipientCount, enqueuedCount, and
+     * failedCount. enqueuedCount is the number of recipients accepted for delivery and is 0 when the
+     * send was fully blocked (by the moderation filter or a campaign opt-out); the request still
+     * succeeds in that case, so treat enqueuedCount, not the HTTP status, as the signal that a message
+     * was accepted. Blocked recipients are returned in insertedMessages with status "FAILED";
+     * recipients on the global Do Not Contact list are reported in dncBlockedNumbers with no message
+     * record. Each FAILED message carries errorCode, a stable machine-readable cause (campaign opt-out
+     * is "OUT"; null on success or on failures with no assigned code) that is also included on the
+     * FAILED status-callback payload.
+     *
      * @param string $senderPhoneNumber The phone number to send from
      * @param string|array $recipientPhoneNumbers The recipient phone number(s)
      * @param string $messageBody The message body
@@ -206,6 +216,8 @@ class Messages
      * @param string $messageBody The body of the P2P message
      * @param string|null $statusCallbackUrl Optional URL to receive status callbacks
      * @param bool|null $useSignalHouseShortlinks When false, SignalHouse applies no link-shortening or text-spin and your pre-spun links/content are sent verbatim (bring-your-own spinner). Defaults to true.
+     * @param string|null $groupId Explicit group to send from. Defaults to the group in your auth context.
+     * @param string|null $subgroupId Explicit subgroup to attribute the send (and its inbound reply) to. P2P has no dedicated sender number, so pass this to record the send against a specific subgroup; it also resolves the group. Defaults to the group's oldest subgroup.
      * @param array $options Additional request options
      * @return array Standardized response
      */
@@ -214,6 +226,8 @@ class Messages
         string $messageBody,
         ?string $statusCallbackUrl = null,
         ?bool $useSignalHouseShortlinks = null,
+        ?string $groupId = null,
+        ?string $subgroupId = null,
         array $options = []
     ): array {
         $this->client->require([
@@ -228,6 +242,14 @@ class Messages
 
         if ($statusCallbackUrl !== null) {
             $body['statusCallbackUrl'] = $statusCallbackUrl;
+        }
+
+        if ($groupId !== null) {
+            $body['groupId'] = $groupId;
+        }
+
+        if ($subgroupId !== null) {
+            $body['subgroupId'] = $subgroupId;
         }
 
         if ($useSignalHouseShortlinks !== null) {
@@ -280,6 +302,16 @@ class Messages
 
     /**
      * Send an MMS message with optional media attachments
+     *
+     * The response reports the send outcome via requestedRecipientCount, enqueuedCount, and
+     * failedCount. enqueuedCount is the number of recipients accepted for delivery and is 0 when the
+     * send was fully blocked (by the moderation filter or a campaign opt-out); the request still
+     * succeeds in that case, so treat enqueuedCount, not the HTTP status, as the signal that a message
+     * was accepted. Blocked recipients are returned in insertedMessages with status "FAILED";
+     * recipients on the global Do Not Contact list are reported in dncBlockedNumbers with no message
+     * record. Each FAILED message carries errorCode, a stable machine-readable cause (campaign opt-out
+     * is "OUT"; null on success or on failures with no assigned code) that is also included on the
+     * FAILED status-callback payload.
      *
      * @param string $senderPhoneNumber The phone number to send from
      * @param array $recipientPhoneNumbers The recipient phone numbers
@@ -347,6 +379,16 @@ class Messages
 
     /**
      * Send a group MMS message
+     *
+     * The response reports the send outcome via requestedRecipientCount, enqueuedCount, and
+     * failedCount. enqueuedCount is the number of recipients accepted for delivery and is 0 when the
+     * send was fully blocked (by the moderation filter or a campaign opt-out); the request still
+     * succeeds in that case, so treat enqueuedCount, not the HTTP status, as the signal that a message
+     * was accepted. Blocked recipients are returned in insertedMessages with status "FAILED";
+     * recipients on the global Do Not Contact list are reported in dncBlockedNumbers with no message
+     * record. Each FAILED message carries errorCode, a stable machine-readable cause (campaign opt-out
+     * is "OUT"; null on success or on failures with no assigned code) that is also included on the
+     * FAILED status-callback payload.
      *
      * @param string $senderPhoneNumber The phone number to send from
      * @param array $recipientPhoneNumbers The recipient phone numbers

@@ -116,6 +116,34 @@ class SipTrunks
     }
 
     /**
+     * Assign phone numbers to a SIP trunk so inbound calls route over it.
+     * POST /voice/sip-trunks/:id/assign-numbers
+     */
+    public function assignNumbers(string $id, array $phoneNumbers, array $options = []): array
+    {
+        $this->client->require(['id' => $id, 'phoneNumbers' => $phoneNumbers]);
+        $safeId = rawurlencode($id);
+        return $this->client->request("/voice/sip-trunks/{$safeId}/assign-numbers", array_merge([
+            'method' => 'POST',
+            'body' => ['phoneNumbers' => $phoneNumbers],
+        ], $options));
+    }
+
+    /**
+     * Unassign phone numbers from a SIP trunk.
+     * POST /voice/sip-trunks/:id/unassign-numbers
+     */
+    public function unassignNumbers(string $id, array $phoneNumbers, array $options = []): array
+    {
+        $this->client->require(['id' => $id, 'phoneNumbers' => $phoneNumbers]);
+        $safeId = rawurlencode($id);
+        return $this->client->request("/voice/sip-trunks/{$safeId}/unassign-numbers", array_merge([
+            'method' => 'POST',
+            'body' => ['phoneNumbers' => $phoneNumbers],
+        ], $options));
+    }
+
+    /**
      * List available SIP Points of Presence.
      * GET /voice/sip-trunks/pops
      */

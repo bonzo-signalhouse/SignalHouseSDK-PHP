@@ -27,7 +27,7 @@ class Brands
      * Get a list of brands with optional filters
      *
      * @param array $params Filter parameters (id, subgroupId, groupId, page, limit, status, registrationType).
-     *                      id is a brand lookup id. registrationType filters by "TEN_DLC" or "TOLL_FREE".
+    *                      id is a brand lookup id. registrationType filters by "TEN_DLC", "TOLL_FREE", or "SHORT_CODE".
      *                      Responses may include brandId: null for pending brands.
      * @param array $options Additional request options
      * @return array The response from the server
@@ -90,6 +90,43 @@ class Brands
         return $this->client->request('/brand/toll-free', array_merge([
             'method' => 'POST',
             'body' => $brandData,
+        ], $options));
+    }
+
+    /**
+     * Create a local Short Code brand for manual Signal House review.
+     * The route forces SHORT_CODE and returns a synchronous 201 PENDING_APPROVAL record with an
+     * SCB-prefixed brandId.
+     *
+     * @param array $brandData Short Code payload with a shortCode sub-array.
+     * @param array $options Additional request options
+     * @return array The response from the server
+     */
+    public function createShortCodeBrand(array $brandData, array $options = []): array
+    {
+        $this->client->require(['brandData' => $brandData]);
+        return $this->client->request('/brand/short-code', array_merge([
+            'method' => 'POST',
+            'body' => $brandData,
+        ], $options));
+    }
+
+    /** Approve a pending Short Code brand. signalhouse_admin only. */
+    public function approveShortCodeBrand(string $brandId, array $options = []): array
+    {
+        $this->client->require(['brandId' => $brandId]);
+        $safeBrandId = rawurlencode($brandId);
+        return $this->client->request("/brand/approve/{$safeBrandId}", array_merge(['method' => 'POST'], $options));
+    }
+
+    /** Reject a pending Short Code brand with a required customer-visible reason. signalhouse_admin only. */
+    public function rejectShortCodeBrand(string $brandId, string $internalRejectionReason, array $options = []): array
+    {
+        $this->client->require(['brandId' => $brandId, 'internalRejectionReason' => $internalRejectionReason]);
+        $safeBrandId = rawurlencode($brandId);
+        return $this->client->request("/brand/reject/{$safeBrandId}", array_merge([
+            'method' => 'POST',
+            'body' => ['internalRejectionReason' => $internalRejectionReason],
         ], $options));
     }
 

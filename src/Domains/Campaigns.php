@@ -53,6 +53,47 @@ class Campaigns
                         'method' => 'POST',
                     ], $options));
                 }
+
+                /**
+                 * Transition a Short Code campaign's review status (SHGHL-2225). A customer-visible
+                 * reason is required for both rejection states ("REJECTED" = Signal House Rejected,
+                 * "DCA_REJECTED" = Rejected). Fulfillment and carrier submission are separate staff operations.
+                 *
+                 * @param string $campaignId The ID of the campaign to transition
+                 * @param string $status The target status: "PENDING_REVIEW", "REJECTED",
+                 *                      "PENDING_CREATION", "DCA_REJECTED", or "ACTIVE"; use
+                 *                      submitShortCodeCampaignToCarrier for "PENDING_DCA_APPROVAL"
+                 * @param string|null $rejectionReason Required for "REJECTED"/"DCA_REJECTED" (10-1024 characters)
+                 * @param array $options Additional request options
+                 * @return array The updated campaign
+                 */
+                public function updateShortCodeCampaignStatus(string $campaignId, string $status, ?string $rejectionReason = null, array $options = []): array
+                {
+                    $this->client->require(['campaignId' => $campaignId, 'status' => $status]);
+                    $safeCampaignId = rawurlencode($campaignId);
+                    return $this->client->request("/campaign/short-code/{$safeCampaignId}/status", array_merge([
+                        'method' => 'PUT',
+                        'body' => ['status' => $status, 'rejectionReason' => $rejectionReason],
+                    ], $options));
+                }
+
+                /** Fulfill a campaign-bound Signal House Short Code request. */
+                public function fulfillShortCodeCampaign(string $campaignId, string $actualCode, ?string $internalNotes = null, array $options = []): array
+                {
+                    $this->client->require(['campaignId' => $campaignId, 'actualCode' => $actualCode]);
+                    $safeCampaignId = rawurlencode($campaignId);
+                    return $this->client->request("/campaign/short-code/{$safeCampaignId}/fulfill", array_merge([
+                        'method' => 'POST', 'body' => ['actualCode' => $actualCode, 'internalNotes' => $internalNotes],
+                    ], $options));
+                }
+
+                /** Submit an internally approved Short Code campaign to carrier review. */
+                public function submitShortCodeCampaignToCarrier(string $campaignId, array $options = []): array
+                {
+                    $this->client->require(['campaignId' => $campaignId]);
+                    $safeCampaignId = rawurlencode($campaignId);
+                    return $this->client->request("/campaign/short-code/{$safeCampaignId}/submit-to-carrier", array_merge(['method' => 'POST'], $options));
+                }
             };
         }
     }
@@ -127,6 +168,96 @@ class Campaigns
         return $this->client->request('/campaign/toll-free', array_merge([
             'method' => 'POST',
             'body' => $campaignData,
+        ], $options));
+    }
+
+    /**
+     * Create a new Short Code campaign and submit it for Signal House review (SHGHL-2225).
+     *
+    * Requires an approved (VERIFIED) Short Code brand. `shortCode.optInUrl` is optional; Signal House
+    * uses the brand's `optInLink` when omitted and captures the screenshot asynchronously, retrying up to three times. Request or register the
+    * campaign's Short Code separately through `numbers->requestShortCodeAcquisition()` after creation.
+     *
+     * @param array $campaignData The Short Code campaign data: brandId, privacyPolicyLink,
+     *                            termsAndConditionsLink, optinMessage, optoutMessage, helpMessage,
+     *                            sample1-3, autoRenewal, tag, and a 'shortCode' sub-array
+     *                            (useCases, optInMethods, optInMethodDescriptions,
+     *                            messageFrequency, pricingTier, adultContent, doubleOptInMessage,
+    *                            programSummary, optInConfirmationMessage, optInUrl).
+     * @param array $options Additional request options
+     * @return array The response from the server containing the created campaign
+     */
+    public function createShortCodeCampaign(array $campaignData, array $options = []): array
+    {
+        $this->client->require(['campaignData' => $campaignData]);
+
+        $multipart = [
+            [
+                'name' => 'campaignData',
+                'contents' => json_encode($campaignData),
+            ],
+        ];
+        return $this->multipartClient->request('/campaign/short-code', array_merge([
+            'method' => 'POST',
+            'multipart' => $multipart,
+        ], $options));
+    }
+
+    /**
+     * Update a Short Code campaign's editable fields (SHGHL-2225). Only permitted while the
+     * campaign is in Signal House Review or Signal House Rejected status; the number source
+     * cannot be changed once submitted.
+     *
+     * @param string $campaignId The ID of the campaign to update
+     * @param array $updateData The fields to update (top-level campaign fields plus an optional
+     *                          'shortCode' array of editable Short Code fields)
+     * @param array $options Additional request options
+     * @return array The response from the server containing the updated campaign
+     */
+    public function updateShortCodeCampaign(string $campaignId, array $updateData, array $options = []): array
+    {
+        $this->client->require(['campaignId' => $campaignId]);
+        $safeCampaignId = rawurlencode($campaignId);
+        return $this->client->request("/campaign/short-code/{$safeCampaignId}", array_merge([
+            'method' => 'PUT',
+            'body' => $updateData,
+        ], $options));
+    }
+
+    /**
+     * Cancel a Short Code campaign (SHGHL-2225). Customers may cancel only while the campaign is
+     * in Signal House Review or Signal House Rejected status; Signal House staff may cancel from
+     * any non-terminal status. Persists as "EXPIRED" (displayed as "Cancelled"). A real Registry
+     * lease (external or an already-fulfilled Signal House request) is never auto-released — see
+     * SHGHL-2228 for offboarding.
+     *
+     * @param string $campaignId The ID of the campaign to cancel
+     * @param array $options Additional request options
+     * @return array The response from the server containing the cancelled campaign
+     */
+    public function cancelShortCodeCampaign(string $campaignId, array $options = []): array
+    {
+        $this->client->require(['campaignId' => $campaignId]);
+        $safeCampaignId = rawurlencode($campaignId);
+        return $this->client->request("/campaign/short-code/{$safeCampaignId}/cancel", array_merge([
+            'method' => 'POST',
+        ], $options));
+    }
+
+    /**
+    * Download a private Short Code external lease receipt. Opt-in screenshots are public at the
+    * shortCode.screenshotUrl returned on the campaign.
+     *
+    * @param string $artifactId The receipt identifier from numberSource.externalLease.receiptArtifactId
+     * @param array $options Additional request options
+     * @return array The response from the server containing the raw file bytes
+     */
+    public function readCampaignArtifact(string $artifactId, array $options = []): array
+    {
+        $this->client->require(['artifactId' => $artifactId]);
+        $safeArtifactId = rawurlencode($artifactId);
+        return $this->client->request("/campaign/short-code/artifact/{$safeArtifactId}", array_merge([
+            'method' => 'GET',
         ], $options));
     }
 

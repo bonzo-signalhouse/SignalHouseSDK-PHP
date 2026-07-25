@@ -68,7 +68,7 @@ class SignalHouseSDK
         $this->landings = new Landings($client, $multipartClient, $enableAdmin);
         $this->messages = new Messages($client, $multipartClient, $enableAdmin);
         $this->notifications = new Notifications($client, $enableAdmin);
-        $this->numbers = new Numbers($client, $enableAdmin);
+        $this->numbers = new Numbers($client, $multipartClient, $enableAdmin);
         $this->onboarding = new Onboarding($client, $enableAdmin);
         $this->shortlinks = new Shortlinks($client, $enableAdmin);
         $this->subgroups = new Subgroups($client, $enableAdmin);

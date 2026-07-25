@@ -7,12 +7,14 @@ use SignalHouse\SDK\HttpClient;
 class Numbers
 {
     private HttpClient $client;
+    private HttpClient $multipartClient;
     private bool $enableAdmin;
     public ?object $admin = null;
 
-    public function __construct(HttpClient $client, bool $enableAdmin)
+    public function __construct(HttpClient $client, HttpClient $multipartClient, bool $enableAdmin)
     {
         $this->client = $client;
+        $this->multipartClient = $multipartClient;
         $this->enableAdmin = $enableAdmin;
 
         if ($enableAdmin) {
@@ -61,6 +63,13 @@ class Numbers
                     return $this->client->request("/number/portin/{$safePortingId}/approve", array_merge([
                         'method' => 'POST',
                     ], $options));
+                }
+
+                /** List campaign-bound Short Code acquisition requests. */
+                public function getShortCodeAcquisitionRequests(array $params = [], array $options = []): array
+                {
+                    $queryString = $this->client->getQueryString($params);
+                    return $this->client->request("/number/short-code/requests{$queryString}", array_merge(['method' => 'GET'], $options));
                 }
             };
         }
@@ -150,6 +159,39 @@ class Numbers
         return $this->client->request('/number/toll-free', array_merge([
             'method' => 'POST',
             'body' => ['quantity' => $quantity, 'subgroupId' => $subgroupId],
+        ], $options));
+    }
+
+    /**
+     * Request a campaign-bound Short Code acquisition or register a customer-owned Registry lease.
+    * INVENTORY soft-holds an existing unassigned Short Code. RANDOM and VANITY requests are fulfilled by Signal
+    * House staff. EXTERNAL_LEASE creates a pending Short Code number immediately; it becomes READY only when its campaign becomes ACTIVE.
+     *
+    * @param array $acquisitionData subgroupId, brandId, campaignId, requestType, and source-specific fields
+     * @param array $options Additional request options
+    * @param string|resource|null $leaseReceiptFile Required PNG, JPEG, or PDF receipt for EXTERNAL_LEASE
+     * @return array Pending acquisition request or pending external-lease number
+     */
+    public function requestShortCodeAcquisition(array $acquisitionData, array $options = [], mixed $leaseReceiptFile = null): array
+    {
+        $this->client->require([
+            'subgroupId' => $acquisitionData['subgroupId'] ?? null,
+            'brandId' => $acquisitionData['brandId'] ?? null,
+            'campaignId' => $acquisitionData['campaignId'] ?? null,
+            'requestType' => $acquisitionData['requestType'] ?? null,
+        ]);
+        $multipart = [
+            ['name' => 'acquisitionData', 'contents' => json_encode($acquisitionData)],
+        ];
+        if ($leaseReceiptFile !== null) {
+            $multipart[] = [
+                'name' => 'leaseReceipt',
+                'contents' => is_string($leaseReceiptFile) ? fopen($leaseReceiptFile, 'r') : $leaseReceiptFile,
+            ];
+        }
+        return $this->multipartClient->request('/number/short-code', array_merge([
+            'method' => 'POST',
+            'multipart' => $multipart,
         ], $options));
     }
 
