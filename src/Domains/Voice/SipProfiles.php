@@ -122,30 +122,42 @@ class SipProfiles
 
     /**
      * Assign a phone number to this SIP profile (routes inbound calls on that
-     * number to the endpoint).
+     * number to the endpoint). Prefer $e164 (numbers are Mongo-authoritative);
+     * the legacy $phoneNumberId (a voice-backend phone-number UUID) is still
+     * accepted. Provide at least one of the two.
      * POST /voice/sip-profiles/:id/assign-number
      */
-    public function assignNumber(string $id, string $phoneNumberId, array $options = []): array
+    public function assignNumber(string $id, ?string $phoneNumberId = null, ?string $e164 = null, array $options = []): array
     {
-        $this->client->require(['id' => $id, 'phoneNumberId' => $phoneNumberId]);
+        $this->client->require(['id' => $id]);
+        if ($e164 === null && $phoneNumberId === null) {
+            $this->client->require(['e164' => $e164]);
+        }
         $safeId = rawurlencode($id);
+        $body = $e164 !== null ? ['e164' => $e164] : ['phoneNumberId' => $phoneNumberId];
         return $this->client->request("/voice/sip-profiles/{$safeId}/assign-number", array_merge([
             'method' => 'POST',
-            'body' => ['phoneNumberId' => $phoneNumberId],
+            'body' => $body,
         ], $options));
     }
 
     /**
-     * Unassign a phone number from this SIP profile.
+     * Unassign a phone number from this SIP profile. Prefer $e164; the legacy
+     * $phoneNumberId (a voice-backend phone-number UUID) is still accepted.
+     * Provide at least one of the two.
      * POST /voice/sip-profiles/:id/unassign-number
      */
-    public function unassignNumber(string $id, string $phoneNumberId, array $options = []): array
+    public function unassignNumber(string $id, ?string $phoneNumberId = null, ?string $e164 = null, array $options = []): array
     {
-        $this->client->require(['id' => $id, 'phoneNumberId' => $phoneNumberId]);
+        $this->client->require(['id' => $id]);
+        if ($e164 === null && $phoneNumberId === null) {
+            $this->client->require(['e164' => $e164]);
+        }
         $safeId = rawurlencode($id);
+        $body = $e164 !== null ? ['e164' => $e164] : ['phoneNumberId' => $phoneNumberId];
         return $this->client->request("/voice/sip-profiles/{$safeId}/unassign-number", array_merge([
             'method' => 'POST',
-            'body' => ['phoneNumberId' => $phoneNumberId],
+            'body' => $body,
         ], $options));
     }
 }

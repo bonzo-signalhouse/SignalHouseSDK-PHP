@@ -8,6 +8,7 @@ use SignalHouse\SDK\Domains\Voice\SipProfiles;
 use SignalHouse\SDK\Domains\Voice\ProgrammableVoiceProfiles;
 use SignalHouse\SDK\Domains\Voice\Calls;
 use SignalHouse\SDK\Domains\Voice\CallLogs;
+use SignalHouse\SDK\Domains\Voice\Analytics;
 use SignalHouse\SDK\Domains\Voice\GlobalVoiceSettings;
 use SignalHouse\SDK\Domains\Voice\Tokens;
 
@@ -20,6 +21,7 @@ use SignalHouse\SDK\Domains\Voice\Tokens;
  *  - $sdk->voice->programmableVoiceProfiles — Programmable Voice Profile (route a set of numbers through Signal House)
  *  - $sdk->voice->calls                     — Outbound call origination + call log queries
  *  - $sdk->voice->callLogs                  — Account-scoped call history: list/get + presigned recording
+ *  - $sdk->voice->analytics                 — Aggregated call metrics (summary tiles + byDate/byNumber/byCarrier breakdowns)
  *  - $sdk->voice->globalVoiceSettings       — Account-wide voice defaults (accepted regions, max spend, E911)
  *  - $sdk->voice->tokens                    — Mint ephemeral SIP credentials for the browser voice SDK
  */
@@ -30,6 +32,7 @@ class Voice
     public ProgrammableVoiceProfiles $programmableVoiceProfiles;
     public Calls $calls;
     public CallLogs $callLogs;
+    public Analytics $analytics;
     public GlobalVoiceSettings $globalVoiceSettings;
     public Tokens $tokens;
 
@@ -40,6 +43,7 @@ class Voice
         $this->programmableVoiceProfiles = new ProgrammableVoiceProfiles($client, $enableAdmin);
         $this->calls = new Calls($client, $enableAdmin);
         $this->callLogs = new CallLogs($client, $enableAdmin);
+        $this->analytics = new Analytics($client, $enableAdmin);
         $this->globalVoiceSettings = new GlobalVoiceSettings($client, $enableAdmin);
         $this->tokens = new Tokens($client, $enableAdmin);
     }

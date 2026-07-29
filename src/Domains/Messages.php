@@ -11,6 +11,8 @@ use SignalHouse\SDK\HttpClient;
  * accept ISO-8601 date or timestamp strings. The server normalizes them to
  * full UTC-day boundaries: startDate -> start-of-UTC-day, endDate -> end-of-
  * UTC-day. The end day is always included; hourly resolution is not supported.
+ * Business-number filters and SMS/MMS senders accept digits-only 5-6 digit
+ * Short Codes or 10+ digit long numbers. Recipient numbers remain 10+ digits.
  */
 class Messages
 {
@@ -28,7 +30,10 @@ class Messages
     /**
      * Get a list of messages with optional filters and pagination
      *
-     * @param array $params Filter parameters (id, campaignId, brandId, subgroupId, groupId, phoneNumber, senderPhoneNumber, recipientPhoneNumber, status, direction, messageType, channel, carrier, startDate, endDate, sortField, sortOrder, page, limit). messageType accepts a single value or array (e.g. ["SMS", "MMS"]); allowed values are SMS, MMS, RCS, WHATSAPP, VIBER, P2P. When omitted, defaults to all non-P2P types. channel filters by "tenDLC", "tollFree", or "p2p" (single value or array); older messages without a stored channel count as tenDLC.
+     * @param array $params Filter parameters. messageType accepts a single value or array; allowed
+     *     values are SMS, MMS, RCS, WHATSAPP, VIBER, and P2P. channel accepts "tenDLC",
+     *     "tollFree", "shortCode", or "p2p" as a single value or array. Older messages without
+     *     a stored channel count as tenDLC.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -43,7 +48,9 @@ class Messages
     /**
      * Get aggregated analytics for messages with optional filters
      *
-     * @param array $params Filter parameters (groupId, subgroupId, brandId, campaignId, phoneNumber, carrier, startDate, endDate, channel). channel filters by "tenDLC", "tollFree", or "p2p" (single value or array); a tenDLC selection also includes older messages with no channel, and p2p is matched by carrier.
+     * @param array $params Filter parameters. channel accepts "tenDLC", "tollFree", "shortCode",
+     *     or "p2p" as a single value or array. A tenDLC selection includes older messages with no
+     *     channel; p2p is matched by carrier.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -58,7 +65,9 @@ class Messages
     /**
      * Get detailed analytics snapshot records for charting and aggregation
      *
-     * @param array $params Filter parameters (groupId, subgroupId, brandId, campaignId, phoneNumber, carrier, startDate, endDate, channel). channel filters by "tenDLC", "tollFree", or "p2p" (single value or array); a tenDLC selection also includes older messages with no channel, and p2p is a real channel here.
+     * @param array $params Filter parameters. channel accepts "tenDLC", "tollFree", "shortCode",
+     *     or "p2p" as a single value or array. A tenDLC selection includes older messages with no
+     *     channel; p2p is a first-class channel.
      * @param array $options Additional request options
      * @return array The response from the server with an array of analytics snapshot records
      */
@@ -92,7 +101,9 @@ class Messages
      * full set of sms/mms/p2p metric columns plus smsOptOuts and mmsOptOuts (sourced from
      * the DNC analytics MV — P2P has no opt-outs) so callers can apply channel toggles client-side.
      *
-     * @param array $params Filter parameters (groupId required, plus optional subgroupId/brandId/campaignId/phoneNumber/carrier/startDate/endDate/page/limit/channel). limit is capped at 50 per page. channel: "both" (default, all activity) or "tenDLC" | "tollFree" | "p2p" (single value or array) — scopes ORDER BY + row inclusion by the stored channel column so a single-channel caller doesn't get pages dominated by other channels; toll-free is kept separate from 10DLC.
+     * @param array $params Filter parameters. limit is capped at 50. channel accepts "both" (all
+     *     activity), "tenDLC", "tollFree", "shortCode", or "p2p" as a single value or array and
+     *     scopes row inclusion and ranking by the stored channel.
      * @param array $options Additional request options
      * @return array { rows, totalCount, page, limit }
      */
@@ -108,7 +119,9 @@ class Messages
      * Get a paginated breakdown of failed messages grouped by error code. Each row contains
      * per-channel (sms/mms/p2p) error counts plus an enriched description.
      *
-     * @param array $params Filter parameters (groupId required, plus optional subgroupId/brandId/campaignId/phoneNumber/carrier/startDate/endDate/page/limit/channel). limit is capped at 50 per page. channel: "both" (default, every code) or "tenDLC" | "tollFree" | "p2p" (single value or array) — scopes ORDER BY + totalCount by the stored channel column; when one channel is selected, totalErrors reflects only that channel.
+     * @param array $params Filter parameters. limit is capped at 50. channel accepts "both" (every
+     *     code), "tenDLC", "tollFree", "shortCode", or "p2p" as a single value or array. When one
+     *     channel is selected, totalErrors reflects only that channel.
      * @param array $options Additional request options
      * @return array { rows, totalCount, totalErrors: { sms, mms, p2p, all }, page, limit }
      */
@@ -123,7 +136,9 @@ class Messages
     /**
      * Get aggregated DNC (Do Not Contact) opt-out analytics with optional filters
      *
-     * @param array $params Filter parameters (groupId, subgroupId, brandId, campaignId, phoneNumber, carrier, startDate, endDate, channel). channel filters by "tenDLC" or "tollFree" (single value or array); opt-outs are A2P-only, so "p2p" applies no filter, and a tenDLC selection also includes older opt-outs with no channel.
+     * @param array $params Filter parameters. channel accepts "tenDLC", "tollFree", or "shortCode"
+     *     as a single value or array. Opt-outs are A2P-only, so "p2p" applies no scope; tenDLC also
+     *     includes older opt-outs with no channel.
      * @param array $options Additional request options
      * @return array The response from the server with totals, byDate, byPhoneNumber, byCarrier
      */
@@ -138,7 +153,9 @@ class Messages
     /**
      * Get paginated Do Not Call records with optional filters
      *
-     * @param array $params Filter parameters (groupId, subgroupId, brandId, campaignId, phoneNumber, carrier, startDate, endDate, page, limit, sortField, sortOrder, channel). channel filters by "tenDLC" or "tollFree" (single value or array); opt-outs are A2P-only, so "p2p" applies no filter, and a tenDLC selection also includes older opt-outs with no channel.
+     * @param array $params Filter parameters. channel accepts "tenDLC", "tollFree", or "shortCode"
+     *     as a single value or array. Opt-outs are A2P-only, so "p2p" applies no scope; tenDLC also
+     *     includes older opt-outs with no channel.
      * @param array $options Additional request options
      * @return array The response from the server with paginated DNC records
      */
@@ -163,8 +180,8 @@ class Messages
      * is "OUT"; null on success or on failures with no assigned code) that is also included on the
      * FAILED status-callback payload.
      *
-     * @param string $senderPhoneNumber The phone number to send from
-     * @param string|array $recipientPhoneNumbers The recipient phone number(s)
+     * @param string $senderPhoneNumber Digits-only 5-6 digit Short Code or 10+ digit long number
+     * @param string|array $recipientPhoneNumbers 10+ digit recipients; Short Codes permit exactly one
      * @param string $messageBody The message body
      * @param string|null $statusCallbackUrl Optional callback URL for status updates
      * @param bool $enableShortlink Whether to enable shortlinks
@@ -211,7 +228,6 @@ class Messages
     /**
      * Send a P2P message via Rogue Mobile SMPP
      *
-     * @param string $senderPhoneNumber The phone number to send from
      * @param string|array $recipientPhoneNumbers The phone number(s) to send to
      * @param string $messageBody The body of the P2P message
      * @param string|null $statusCallbackUrl Optional URL to receive status callbacks
@@ -313,8 +329,8 @@ class Messages
      * is "OUT"; null on success or on failures with no assigned code) that is also included on the
      * FAILED status-callback payload.
      *
-     * @param string $senderPhoneNumber The phone number to send from
-     * @param array $recipientPhoneNumbers The recipient phone numbers
+     * @param string $senderPhoneNumber Digits-only 5-6 digit Short Code or 10+ digit long number
+     * @param array $recipientPhoneNumbers 10+ digit recipients; Short Codes permit exactly one
      * @param string $messageBody The message body
      * @param array|null $mediaUrls Optional media URLs
      * @param string|null $statusCallbackUrl Optional callback URL
@@ -390,7 +406,7 @@ class Messages
      * is "OUT"; null on success or on failures with no assigned code) that is also included on the
      * FAILED status-callback payload.
      *
-     * @param string $senderPhoneNumber The phone number to send from
+     * @param string $senderPhoneNumber 10+ digit long number; Short Codes do not support group messaging
      * @param array $recipientPhoneNumbers The recipient phone numbers
      * @param string $messageBody The message body
      * @param array|null $mediaUrls Optional media URLs

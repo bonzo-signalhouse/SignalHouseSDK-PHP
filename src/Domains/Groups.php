@@ -60,6 +60,26 @@ class Groups
                 }
 
                 /**
+                 * Set a group's KYC complianceStatus (SHGHL-2740). Only flips the field — it does
+                 * not trigger any lockout side effects (halted sends, revoked API keys, etc.) for
+                 * "rejected".
+                 *
+                 * @param string $groupId The ID of the group to update
+                 * @param string $complianceStatus One of "unverified", "pending", "verified", "rejected"
+                 * @param array $options Additional request options
+                 * @return array The updated group object returned from the server
+                 */
+                public function updateComplianceStatus(string $groupId, string $complianceStatus, array $options = []): array
+                {
+                    $this->client->require(['groupId' => $groupId, 'complianceStatus' => $complianceStatus]);
+                    $safeGroupId = rawurlencode($groupId);
+                    return $this->client->request("/group/{$safeGroupId}/compliance-status", array_merge([
+                        'method' => 'PUT',
+                        'body' => ['complianceStatus' => $complianceStatus],
+                    ], $options));
+                }
+
+                /**
                  * Link an external tenant (GHL/Shopify) to a V2 group (server-to-server).
                  * Exchanges a single-use link token for a canonical group, adopting an empty
                  * portal group, repointing to an existing group, or flagging for manual review.
