@@ -25,6 +25,18 @@ class Groups
                 }
 
                 /**
+                 * Get resource counts grouped by group ID. Only signalhouse_admin can query all groups;
+                 * every other allowed role is restricted to its JWT group scope.
+                 */
+                public function getGroupCounts(array $params = [], array $options = []): array
+                {
+                    $queryString = $this->client->getQueryString($params);
+                    return $this->client->request("/group/counts{$queryString}", array_merge([
+                        'method' => 'GET',
+                    ], $options));
+                }
+
+                /**
                  * Get a list of all groups with optional pagination
                  */
                 public function getGroups(array $params = [], array $options = []): array
@@ -37,6 +49,8 @@ class Groups
 
                 /**
                  * Create a new group
+                 *
+                 * $groupData optionally accepts psPartnerKey and ownerEmail to credit a referring partner.
                  */
                 public function createGroup(array $groupData, array $options = []): array
                 {

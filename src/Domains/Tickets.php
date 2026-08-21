@@ -46,6 +46,17 @@ class Tickets
                 }
 
                 /**
+                 * Search open non-Epic, non-Subtask issues for the Subtask parent picker. Staff-only.
+                 */
+                public function searchJiraParentIssues(?string $query = null, array $options = []): array
+                {
+                    $queryString = $this->client->getQueryString(['query' => $query]);
+                    return $this->client->request("/admin/ticket/jira/parent-issues{$queryString}", array_merge([
+                        'method' => 'GET',
+                    ], $options));
+                }
+
+                /**
                  * Search assignable Jira users. Staff-only.
                  */
                 public function searchJiraAssignees(?string $query = null, array $options = []): array

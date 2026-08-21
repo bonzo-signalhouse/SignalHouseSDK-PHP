@@ -31,6 +31,22 @@ class Subgroups
     }
 
     /**
+    * Get resource counts grouped by subgroup ID. Only signalhouse_admin can query all groups;
+    * every other allowed role is restricted to its JWT group scope.
+     *
+     * @param array $params Optional filters (groupId, subgroupId, limit, offset)
+     * @param array $options Additional request options
+     * @return array The response from the server
+     */
+    public function getSubgroupCounts(array $params = [], array $options = []): array
+    {
+        $queryString = $this->client->getQueryString($params);
+        return $this->client->request("/subgroup/counts{$queryString}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
      * Create a new subgroup
      *
      * @param array $subgroupData The subgroup data (groupId, subgroupName, contact info, address, optional carrierIdFamily/carrierIdRegion, etc.). Setting carrierIdFamily/carrierIdRegion requires signalhouse_api, signalhouse_admin, signalhouse_user, api, admin, developer, or billing role.

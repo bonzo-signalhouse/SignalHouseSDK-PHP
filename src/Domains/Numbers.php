@@ -317,12 +317,15 @@ class Numbers
     }
 
     /**
-     * Assign phone numbers to a campaign
+     * Assign phone numbers to a campaign. Numbers that are not found, already RELEASED, already assigned
+     * to a different campaign, on a mismatched DCA, or (for a 10DLC campaign without a number pool) beyond
+     * the remaining 49-number-per-campaign limit are not queued - each is reported back individually in
+     * skipped instead of failing the whole request.
      *
      * @param string $campaignId The campaign ID
      * @param array $phoneNumbers The phone numbers to assign
      * @param array $options Additional request options
-     * @return array The response from the server
+     * @return array The response from the server, resolving to ['Message' => string, 'queued' => array, 'skipped' => array]
      */
     public function assignPhoneNumberToCampaign(string $campaignId, array $phoneNumbers, array $options = []): array
     {
