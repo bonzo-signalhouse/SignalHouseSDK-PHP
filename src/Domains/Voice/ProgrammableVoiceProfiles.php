@@ -17,14 +17,17 @@ use SignalHouse\SDK\HttpClient;
  *  - name               (string, required for create) Profile name.
  *  - subgroupIds        (string[], required for create) Subgroups this profile spans.
  *  - region             (string, optional) Region/POP label.
- *  - routeAction        (string, optional) FORWARD|WEBRTC|SIP_TRUNK|SIP_PROFILE (default FORWARD).
+ *  - routeAction        (string, optional) FORWARD|WEBRTC|SIP_TRUNK|SIP_PROFILE|CALL_CONTROL (default FORWARD).
  *                       Deliver the call to a PSTN number (FORWARD), ring the profile's subgroup
- *                       registered softphones (WEBRTC), send to a SIP trunk (SIP_TRUNK), or ring a
- *                       registered SIP endpoint (SIP_PROFILE).
+ *                       registered softphones (WEBRTC), send to a SIP trunk (SIP_TRUNK), ring a
+ *                       registered SIP endpoint (SIP_PROFILE), or hand the call to your programmable
+ *                       call-control webhook that returns SHML (CALL_CONTROL).
  *  - forwardToE164      (string, optional) Destination number, required when routeAction is FORWARD.
  *  - forwardAfterSeconds(int, optional) Ring seconds before the action fires.
  *  - routeSipTrunkId    (string, optional) SIP trunk id, required when routeAction is SIP_TRUNK.
  *  - routeSipProfileId  (string, optional) SIP endpoint id, required when routeAction is SIP_PROFILE.
+ *  - webhookUrl         (string, optional) Inbound voice webhook / SHML program URL, required when
+ *                       routeAction is CALL_CONTROL.
  *  - recordingEnabled   (bool, optional) Record calls on this profile.
  *  - enabled            (bool, optional) Active state (default true).
  *
@@ -70,9 +73,10 @@ class ProgrammableVoiceProfiles
      * Create a Programmable Voice Profile.
      *
      * Required: name, subgroupIds. Optional: region, routeAction
-     * (FORWARD|WEBRTC|SIP_TRUNK|SIP_PROFILE), forwardToE164, forwardAfterSeconds,
+     * (FORWARD|WEBRTC|SIP_TRUNK|SIP_PROFILE|CALL_CONTROL), forwardToE164, forwardAfterSeconds,
      * routeSipTrunkId (required when routeAction is SIP_TRUNK), routeSipProfileId
-     * (required when routeAction is SIP_PROFILE), recordingEnabled, enabled.
+     * (required when routeAction is SIP_PROFILE), webhookUrl (required when routeAction
+     * is CALL_CONTROL), recordingEnabled, enabled.
      *
      * @param array $profileData Profile fields (see class docblock for the full list).
      * POST /voice/api/v1/programmable-voice-profiles
@@ -88,8 +92,9 @@ class ProgrammableVoiceProfiles
 
     /**
      * Update an existing Programmable Voice Profile (partial). Any create field may
-     * be supplied, including routeAction (FORWARD|WEBRTC|SIP_TRUNK|SIP_PROFILE) and
-     * its dependents routeSipTrunkId (SIP_TRUNK) / routeSipProfileId (SIP_PROFILE).
+     * be supplied, including routeAction (FORWARD|WEBRTC|SIP_TRUNK|SIP_PROFILE|CALL_CONTROL)
+     * and its dependents routeSipTrunkId (SIP_TRUNK) / routeSipProfileId (SIP_PROFILE) /
+     * webhookUrl (CALL_CONTROL).
      *
      * @param array $updateData Fields to update (see class docblock for the full list).
      * PATCH /voice/api/v1/programmable-voice-profiles/:id
