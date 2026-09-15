@@ -27,15 +27,27 @@ class Messages
         $this->enableAdmin = $enableAdmin;
     }
 
+    /** Estimate Canadian SMS/MMS in microdollars from cached carriers without sending or charging. */
+    public function estimateMessage(string $senderPhoneNumber, array $recipientPhoneNumbers, string $messageBody, array $options = [], string $messageType = 'SMS'): array
+    {
+        return $this->client->request('/message/estimate', array_merge(['method' => 'POST', 'body' => compact('senderPhoneNumber', 'recipientPhoneNumbers', 'messageBody', 'messageType')], $options));
+    }
+
     /**
      * Get a list of messages with optional filters and pagination
      *
      * @param array $params Filter parameters. messageType accepts a single value or array; allowed
-     *     values are SMS, MMS, RCS, WHATSAPP, VIBER, and P2P. channel accepts "tenDLC",
+     *     values are SMS, MMS, RCS, WHATSAPP, VIBER, and P2P. channel accepts "tenDLC", "virtualLongCode",
      *     "tollFree", "shortCode", or "p2p" as a single value or array. Older messages without
-     *     a stored channel count as tenDLC.
+     *     a stored channel count as tenDLC. sentimentLabel filters by sentiment bucket and accepts
+     *     "positive", "neutral", or "negative" as a single value or array; it is applied as the
+     *     sentimentScore range the label threshold produces, so unscored messages match no bucket and
+     *     outbound messages are excluded. sortField accepts "createdAt", "segmentCount",
+     *     "status", or "sentimentScore".
      * @param array $options Additional request options
-     * @return array The response from the server
+     * @return array The response from the server. Inbound messages also carry sentimentScore
+     *     (-100..100, null when unscored), sentimentLabel ("positive", "neutral" or "negative",
+     *     null when sentimentScore is null) and sentimentScoredAt. Outbound messages are never scored.
      */
     public function getMessages(array $params = [], array $options = []): array
     {
@@ -48,11 +60,22 @@ class Messages
     /**
      * Get aggregated analytics for messages with optional filters
      *
-     * @param array $params Filter parameters. channel accepts "tenDLC", "tollFree", "shortCode",
+     * @param array $params Filter parameters. channel accepts "tenDLC", "virtualLongCode", "tollFree", "shortCode",
      *     or "p2p" as a single value or array. A tenDLC selection includes older messages with no
-     *     channel; p2p is matched by carrier.
+     *     channel; p2p is matched by carrier. subgroupId, brandId, campaignId, phoneNumber and
+     *     carrier each accept a single value, an array, or a comma-separated string; groupId is
+     *     single-valued.
+     *     messageType scopes the SENTIMENT figures to SMS, MMS or P2P (single value, array, or
+     *     comma-separated string); omit for all scored types. It does NOT narrow the message counts,
+     *     which are always returned split per type.
+     *     carrierFamily filters by the recipient's resolved carrier family (Default, ATT, TMobile, Verizon, USCellular, GoogleVoice, ClearSky, Interop, RogueMobile, P2P);
+     *     single value, array, or comma-separated string. Only accepted where the environment serves hourly analytics; elsewhere any value is rejected with a 400 -- omit the parameter unless it is wanted.
      * @param array $options Additional request options
-     * @return array The response from the server
+     * @return array The response from the server. Also includes inbound-message sentiment for the
+     *     requested scope: sentimentScore (volume-weighted average of every scored inbound message
+     *     in range, -100..100, null when nothing was scored), sentimentLabel, sentimentScoredCount,
+     *     sentimentPositive, sentimentNeutral and sentimentNegative. sentimentScore is an average,
+     *     so it must never be summed across responses.
      */
     public function getAnalytics(array $params = [], array $options = []): array
     {
@@ -65,11 +88,32 @@ class Messages
     /**
      * Get detailed analytics snapshot records for charting and aggregation
      *
-     * @param array $params Filter parameters. channel accepts "tenDLC", "tollFree", "shortCode",
+     * @param array $params Filter parameters. channel accepts "tenDLC", "virtualLongCode", "tollFree", "shortCode",
      *     or "p2p" as a single value or array. A tenDLC selection includes older messages with no
-     *     channel; p2p is a first-class channel.
+     *     channel; p2p is a first-class channel. subgroupId, brandId, campaignId, phoneNumber and
+     *     carrier each accept a single value, an array, or a comma-separated string; groupId is
+     *     single-valued.
+     *     messageType scopes the SENTIMENT figures to SMS, MMS or P2P (single value, array, or
+     *     comma-separated string); omit for all scored types. It does NOT narrow the message counts,
+     *     which are always returned split per type.
+     *     carrierFamily filters by the recipient's resolved carrier family (Default, ATT, TMobile, Verizon, USCellular, GoogleVoice, ClearSky, Interop, RogueMobile, P2P);
+     *     single value, array, or comma-separated string. Only accepted where the environment serves hourly analytics; elsewhere any value is rejected with a 400 -- omit the parameter unless it is wanted.
+     *     granularity ("day" | "hour") is the time-bucket grain of the byDate rows. Omit for day (each
+     *     row's _id is a "YYYY-MM-DD" date). "hour" buckets by hour (each row's _id is a
+     *     "YYYY-MM-DD HH:MM:SS" UTC hour; startDate is floored to its hour and endDate honoured as
+     *     given) and is capped to a 7-day span. Only accepted where the environment serves hourly
+     *     analytics; elsewhere any value, including "day", is rejected with a 400 -- omit it unless
+     *     hour grain is wanted.
+     *     breakdown ("carrier" | "carrierFamily") adds a byBreakdown time × dimension series to the
+     *     response ({dimension, rows}: each row is one byDate bucket (_id) for one carrier or carrier
+     *     family (key), top 50 keys by volume, 10DLC only) and caps the span at 31 days. Only accepted where the environment serves hourly analytics; elsewhere any value is rejected with a 400 -- omit the parameter unless it is wanted.
      * @param array $options Additional request options
-     * @return array The response from the server with an array of analytics snapshot records
+     * @return array The response from the server with an array of analytics snapshot records.
+     *     cardTotals and every byDate/byPhoneNumber/byCarrier row also carry that row's own
+     *     inbound-message sentiment: sentimentScore (volume-weighted average, -100..100, null when
+     *     nothing in that row's scope was scored), sentimentLabel, sentimentScoredCount,
+     *     sentimentPositive, sentimentNeutral and sentimentNegative. The fields are always present;
+     *     sentimentScore is an average and must never be summed across rows or responses.
      */
     public function getAnalyticsDetail(array $params = [], array $options = []): array
     {
@@ -102,10 +146,19 @@ class Messages
      * the DNC analytics MV — P2P has no opt-outs) so callers can apply channel toggles client-side.
      *
      * @param array $params Filter parameters. limit is capped at 50. channel accepts "both" (all
-     *     activity), "tenDLC", "tollFree", "shortCode", or "p2p" as a single value or array and
-     *     scopes row inclusion and ranking by the stored channel.
+     *     activity), "tenDLC", "virtualLongCode", "tollFree", "shortCode", or "p2p" as a single value or array and
+     *     scopes row inclusion and ranking by the stored channel. messageType scopes ONLY the
+     *     sentiment figures (SMS, MMS or P2P, single value or array); omit for all scored types. It
+     *     does not narrow the message counts, which are always returned split per type.
+     *     carrierFamily filters by the recipient's resolved carrier family (Default, ATT, TMobile, Verizon, USCellular, GoogleVoice, ClearSky, Interop, RogueMobile, P2P);
+     *     single value, array, or comma-separated string. Only accepted where the environment serves hourly analytics; elsewhere any value is rejected with a 400 -- omit the parameter unless it is wanted.
      * @param array $options Additional request options
-     * @return array { rows, totalCount, page, limit }
+     * @return array { rows, totalCount, page, limit }. Each row carries that subgroup's
+     *     inbound-message sentiment alongside its message counters: sentimentScore
+     *     (volume-weighted, -100..100, null when nothing was scored), sentimentLabel,
+     *     sentimentScoredCount, sentimentPositive, sentimentNeutral, sentimentNegative, plus the
+     *     same six per message type under smsSentiment*, mmsSentiment* and p2pSentiment*. The
+     *     score is derived server-side; combine counts across rows, never the scores.
      */
     public function getAnalyticsBySubgroup(array $params = [], array $options = []): array
     {
@@ -120,8 +173,10 @@ class Messages
      * per-channel (sms/mms/p2p) error counts plus an enriched description.
      *
      * @param array $params Filter parameters. limit is capped at 50. channel accepts "both" (every
-     *     code), "tenDLC", "tollFree", "shortCode", or "p2p" as a single value or array. When one
+     *     code), "tenDLC", "virtualLongCode", "tollFree", "shortCode", or "p2p" as a single value or array. When one
      *     channel is selected, totalErrors reflects only that channel.
+     *     carrierFamily filters by the recipient's resolved carrier family (Default, ATT, TMobile, Verizon, USCellular, GoogleVoice, ClearSky, Interop, RogueMobile, P2P);
+     *     single value, array, or comma-separated string. Only accepted where the environment serves hourly analytics; elsewhere any value is rejected with a 400 -- omit the parameter unless it is wanted.
      * @param array $options Additional request options
      * @return array { rows, totalCount, totalErrors: { sms, mms, p2p, all }, page, limit }
      */
@@ -136,11 +191,16 @@ class Messages
     /**
      * Get aggregated DNC (Do Not Contact) opt-out analytics with optional filters
      *
-     * @param array $params Filter parameters. channel accepts "tenDLC", "tollFree", or "shortCode"
+     * @param array $params Filter parameters. channel accepts "tenDLC", "virtualLongCode", "tollFree", or "shortCode"
      *     as a single value or array. Opt-outs are A2P-only, so "p2p" applies no scope; tenDLC also
      *     includes older opt-outs with no channel.
      * @param array $options Additional request options
-     * @return array The response from the server with totals, byDate, byPhoneNumber, byCarrier
+     * @return array The response from the server with totals, byDate, byPhoneNumber, byCarrier,
+     *     byKeyword. byKeyword breaks opt-outs down by the normalized keyword that revoked consent
+     *     ({optOutKeyword, total, sms, mms}); opt-outs recorded before keyword capture shipped
+     *     appear as a single optOutKeyword: null bucket ("not recorded"). The distinct keyword set
+     *     is open-ended (campaigns register their own keywords beyond the mandatory floor) — render
+     *     top-N plus Other, never a fixed list.
      */
     public function getDncAnalytics(array $params = [], array $options = []): array
     {
@@ -153,11 +213,16 @@ class Messages
     /**
      * Get paginated Do Not Call records with optional filters
      *
-     * @param array $params Filter parameters. channel accepts "tenDLC", "tollFree", or "shortCode"
+     * @param array $params Filter parameters. channel accepts "tenDLC", "virtualLongCode", "tollFree", or "shortCode"
      *     as a single value or array. Opt-outs are A2P-only, so "p2p" applies no scope; tenDLC also
      *     includes older opt-outs with no channel.
      * @param array $options Additional request options
-     * @return array The response from the server with paginated DNC records
+     * @return array The response from the server with paginated DNC records. Each record carries
+     *     optOutKeyword — the normalized keyword that revoked consent (e.g. "stop", "opt out"; a
+     *     repeat opt-out records the most recent word), null for opt-outs recorded before keyword
+     *     capture shipped — and carrierFamily, the resolved carrier family of the recipient number
+     *     (Default, ATT, TMobile, Verizon, USCellular, GoogleVoice, ClearSky, Interop, RogueMobile),
+     *     copied from the inbound message that triggered the opt-out.
      */
     public function getDncRecords(array $params = [], array $options = []): array
     {
@@ -181,7 +246,7 @@ class Messages
      * FAILED status-callback payload.
      *
      * @param string $senderPhoneNumber Digits-only 5-6 digit Short Code or 10+ digit long number
-     * @param string|array $recipientPhoneNumbers 10+ digit recipients; Short Codes permit exactly one
+     * @param string|array $recipientPhoneNumbers 10+ digit recipients; Short Codes permit exactly one, and it must be a +1 (US/Canada) number (a bare 10-digit number is treated as +1)
      * @param string $messageBody The message body
      * @param string|null $statusCallbackUrl Optional callback URL for status updates
      * @param bool $enableShortlink Whether to enable shortlinks
@@ -330,7 +395,7 @@ class Messages
      * FAILED status-callback payload.
      *
      * @param string $senderPhoneNumber Digits-only 5-6 digit Short Code or 10+ digit long number
-     * @param array $recipientPhoneNumbers 10+ digit recipients; Short Codes permit exactly one
+     * @param array $recipientPhoneNumbers 10+ digit recipients; Short Codes permit exactly one, and it must be a +1 (US/Canada) number (a bare 10-digit number is treated as +1)
      * @param string $messageBody The message body
      * @param array|null $mediaUrls Optional media URLs
      * @param string|null $statusCallbackUrl Optional callback URL

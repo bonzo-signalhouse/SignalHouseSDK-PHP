@@ -81,6 +81,23 @@ class Numbers
      * @param array $params Filter parameters (phoneNumber, campaignId, brandId, subgroupId, groupId, page, limit)
      * @param array $options Additional request options
      * @return array The response from the server
+     *
+     * Every record carries a `sentiment` object -- trailing 7-day and 30-day inbound reply sentiment,
+     * refreshed periodically from analytics rather than computed per request: `{ sevenDay, thirtyDay,
+     * updatedAt }`, each window being `{ score, label, scoredCount, positive, neutral, negative }`. The
+     * object is always present and fully populated, so it can be read without a presence check.
+     * `score` is a volume-weighted average in -100..100 and is null when nothing was scored in the
+     * window, which is not the same as a score of 0 -- null means nobody replied, 0 means replies
+     * averaged neutral. `updatedAt` is null until the first rollup writes the record, and it tracks when
+     * the figures last CHANGED, not when the job last ran.
+     *
+     * Every record also carries a `health` object -- trailing 7-day and 30-day delivery/opt-out health from
+     * the same periodic refresh: `{ sevenDay, thirtyDay, updatedAt }`, each window being `{ score,
+     * deliveryRate, optOutRate, deliveryScore, optOutScore, messagesSent, messagesDelivered, messagesFailed,
+     * optOuts }`. `score` is 1.0..10.0 (the mean of the two bucket scores) and is null when nothing was sent
+     * in the window; the volumes say how much traffic sits behind it. A campaign's figure is scored from the
+     * campaign's own summed counters, never averaged from its numbers. For a live figure use GET /number/health
+     * or GET /campaign/health.
      */
     public function getPhoneNumbers(array $params = [], array $options = []): array
     {
@@ -109,7 +126,7 @@ class Numbers
     /**
      * Get available phone numbers for purchase
      *
-     * @param array $params Filter parameters (smsEnabled, mmsEnabled, voiceEnabled, country, state, npa, nxx, phoneNumber, limit, page)
+     * @param array $params Filter parameters (smsEnabled, mmsEnabled, voiceEnabled, country, state, city, npa, nxx, phoneNumber, limit, page). City is a prefix requiring country US/CA and state/province.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -132,12 +149,12 @@ class Numbers
      * @param array $options Additional request options
      * @return array Response containing a `message` field confirming the request was queued
      */
-    public function purchasePhoneNumber(array $phoneNumbers, string $subgroupId, array $options = []): array
+    public function purchasePhoneNumber(array $phoneNumbers, string $subgroupId, array $options = [], string $country = 'US'): array
     {
         $this->client->require(['phoneNumbers' => $phoneNumbers, 'subgroupId' => $subgroupId]);
         return $this->client->request('/number', array_merge([
             'method' => 'POST',
-            'body' => ['phoneNumbers' => $phoneNumbers, 'subgroupId' => $subgroupId],
+            'body' => ['phoneNumbers' => $phoneNumbers, 'subgroupId' => $subgroupId, 'country' => $country],
         ], $options));
     }
 
@@ -153,19 +170,20 @@ class Numbers
      * @param array $options Additional request options
      * @return array Response resolving to { message, orderId } once the request is queued
      */
-    public function purchaseTollFreeNumbers(int $quantity, string $subgroupId, array $options = []): array
+    public function purchaseTollFreeNumbers(int $quantity, string $subgroupId, array $options = [], string $country = 'US'): array
     {
         $this->client->require(['subgroupId' => $subgroupId]);
         return $this->client->request('/number/toll-free', array_merge([
             'method' => 'POST',
-            'body' => ['quantity' => $quantity, 'subgroupId' => $subgroupId],
+            'body' => ['quantity' => $quantity, 'subgroupId' => $subgroupId, 'country' => $country],
         ], $options));
     }
 
     /**
      * Request a campaign-bound Short Code acquisition or register a customer-owned Registry lease.
-    * INVENTORY soft-holds an existing unassigned Short Code. RANDOM and VANITY requests are fulfilled by Signal
-    * House staff. EXTERNAL_LEASE creates a pending Short Code number immediately; it becomes READY only when its campaign becomes ACTIVE.
+    * RANDOM and VANITY requests are fulfilled by Signal House staff. EXTERNAL_LEASE creates a pending Short Code
+    * number immediately; it becomes READY only when its campaign becomes ACTIVE. A YYYY-MM-DD leaseEndDate
+    * expires at 23:59:59 UTC.
      *
     * @param array $acquisitionData subgroupId, brandId, campaignId, requestType, and source-specific fields
      * @param array $options Additional request options
@@ -422,7 +440,7 @@ class Numbers
      * Search NPA/NXX lookup data with optional filters
      *
      * At least one search parameter is required.
-     * Location filters (country, state, city) cannot be combined with NPA/NXX filters.
+     * Country may scope NPA/NXX filters; state and city cannot be combined with them.
      *
      * @param array $params Filter parameters (country, state, city, npa, nxx)
      * @param array $options Additional request options

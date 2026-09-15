@@ -16,7 +16,8 @@ class Webhooks
     }
 
     /**
-     * Get a list of webhooks with optional filters
+     * Get a list of webhooks with optional filters. Each returned endpoint carries
+     * `hasSigningSecret` (bool) instead of the signing secret itself — see createWebhook.
      *
      * @param array $params Filter parameters (id, groupId, endpointType, phoneNumber, page, limit)
      * @param array $options Additional request options
@@ -31,11 +32,13 @@ class Webhooks
     }
 
     /**
-     * Create a new webhook
+     * Create a new webhook. The response includes a `signingSecret` (plaintext HMAC-SHA256 secret)
+     * used to sign every delivery to this endpoint via the X-SignalHouse-Signature header. It is
+     * returned exactly once, here — store it now, it is never exposed again by any read.
      *
      * @param array $webhookData The webhook data
      * @param array $options Additional request options
-     * @return array The response from the server
+     * @return array The response from the server, including the plaintext `signingSecret` (this one time only)
      */
     public function createWebhook(array $webhookData, array $options = []): array
     {
@@ -47,7 +50,8 @@ class Webhooks
     }
 
     /**
-     * Update an existing webhook
+     * Update an existing webhook. Like every other read of a webhook, the response carries
+     * `hasSigningSecret` (bool), never the signing secret itself — see createWebhook.
      *
      * @param string $id The webhook ID
      * @param array $updateData The data to update

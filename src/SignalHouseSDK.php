@@ -2,6 +2,7 @@
 
 namespace SignalHouse\SDK;
 
+use SignalHouse\SDK\Domains\Agents;
 use SignalHouse\SDK\Domains\Auth;
 use SignalHouse\SDK\Domains\Billing;
 use SignalHouse\SDK\Domains\Brands;
@@ -22,6 +23,7 @@ use SignalHouse\SDK\Domains\Webhooks;
 
 class SignalHouseSDK
 {
+    public Agents $agents;
     public Auth $auth;
     public Billing $billing;
     public Brands $brands;
@@ -60,6 +62,7 @@ class SignalHouseSDK
         $client = new HttpClient($baseUrl, $apiKey, false);
         $multipartClient = new HttpClient($baseUrl, $apiKey, true);
 
+        $this->agents = new Agents($client, $enableAdmin);
         $this->auth = new Auth($client, $enableAdmin);
         $this->billing = new Billing($client, $enableAdmin);
         $this->brands = new Brands($client, $multipartClient, $enableAdmin);
