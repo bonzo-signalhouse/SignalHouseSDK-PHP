@@ -154,15 +154,23 @@ class Brands
      * Create external vetting for a brand
      *
      * @param string $brandId Brand lookup id (carrier Brand ID, Mongo _id, or internal reference)
+     * @param string $vettingProviderId The external vetting provider (AEGIS or WMC)
+     * @param string $vettingClass The vetting class: STANDARD, ENHANCED, AUTHPLUS, or RCS (AEGIS accepts all four; WMC accepts STANDARD only)
+     * @param array|null $additionalData Provider-specific additional data forwarded to TCR
      * @param array $options Additional request options
      * @return array The response from the server
      */
-    public function createExternalVetting(string $brandId, array $options = []): array
+    public function createExternalVetting(string $brandId, string $vettingProviderId, string $vettingClass, ?array $additionalData = null, array $options = []): array
     {
-        $this->client->require(['brandId' => $brandId]);
+        $this->client->require(['brandId' => $brandId, 'vettingProviderId' => $vettingProviderId, 'vettingClass' => $vettingClass]);
         $safeBrandId = rawurlencode($brandId);
+        $body = ['vettingProviderId' => $vettingProviderId, 'vettingClass' => $vettingClass];
+        if ($additionalData !== null) {
+            $body['additionalData'] = $additionalData;
+        }
         return $this->client->request("/brand/externalvetting/{$safeBrandId}", array_merge([
             'method' => 'POST',
+            'body' => $body,
         ], $options));
     }
 

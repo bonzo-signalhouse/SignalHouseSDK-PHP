@@ -16,11 +16,30 @@ class Agents
     }
 
     /**
+     * List the voices an agent can be configured to speak with.
+     *
+     * The catalog is platform-wide, not per-account, so this takes no scope. 'voiceId' is
+     * the value to set on a spoken channel's setting.
+     *
+     * Allowed roles: api, admin, developer, billing, user.
+     *
+     * @param array $options Additional request options
+     * @return array The response from the server
+     */
+    public function getAgentVoices(array $options = []): array
+    {
+        return $this->client->request('/agent/voices', array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
      * List the agent profiles under a group.
      *
      * Allowed roles: api, admin, developer, billing, user.
      *
-     * @param array $params Filter parameters. Requires 'groupId'; also accepts 'page' and 'limit' for pagination.
+     * @param array $params Filter parameters. Requires 'groupId'; also accepts 'subgroupId'
+     *                       (Narrow to the agents this subgroup can use — its own, plus the group-level agents shared with every subgroup.) and 'page'/'limit' for pagination.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -59,8 +78,8 @@ class Agents
      * @param array $profileData The agent profile data. Required: groupId (string starting with 'G') and name (string).
      *                           Optional: subgroupId (string starting with 'S', or null for a group-level agent),
      *                           status ("active"|"inactive"), systemPrompt, greeting, guardrails,
-     *                           voiceId (string|null), llmProvider ("bedrock"|"openai"|"anthropic"|"groq"),
-     *                           llmModel (string|null), temperature (number 0-2).
+     *                           Model, voice and sampling settings are per-channel and live on
+     *                           the channel setting, not here.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -80,9 +99,9 @@ class Agents
      *
      * @param string $id The id of the agent profile to update
      * @param array $updateData The fields to update. All optional: name, status ("active"|"inactive"),
-     *                          systemPrompt, greeting, guardrails, voiceId (string|null),
-     *                          llmProvider ("bedrock"|"openai"|"anthropic"|"groq"), llmModel (string|null),
-     *                          temperature (number 0-2). The scope fields groupId and subgroupId are immutable.
+     *                          systemPrompt, greeting, guardrails. Model, voice and sampling
+     *                          settings are per-channel and live on the channel setting, not here.
+     *                          The scope fields groupId and subgroupId are immutable.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -154,6 +173,134 @@ class Agents
     }
 
     /**
+     * Start a conversation without sending a message.
+     *
+     * The counterpart to sendAgentMessage for callers that run the model themselves — a
+     * voice runtime, or your own LLM. Those record what was said; sendAgentMessage decides
+     * it. Both write the same conversation records.
+     *
+     * Allowed roles: api, admin, developer, billing, user.
+     *
+     * @param array $params agentProfileId (required), channel (required), contactIdentifier,
+     *                      callId, metadata
+     * @param array $options Additional request options
+     * @return array The created conversation, including conversationId and conversationSessionId
+     */
+    public function startConversation(array $params, array $options = []): array
+    {
+        $this->client->require([
+            'agentProfileId' => $params['agentProfileId'] ?? null,
+            'channel' => $params['channel'] ?? null,
+        ]);
+        $body = [
+            'agentProfileId' => $params['agentProfileId'],
+            'channel' => $params['channel'],
+        ];
+        if (isset($params['contactIdentifier'])) {
+            $body['contactIdentifier'] = $params['contactIdentifier'];
+        }
+        if (isset($params['callId'])) {
+            $body['callId'] = $params['callId'];
+        }
+        if (isset($params['metadata'])) {
+            $body['metadata'] = $params['metadata'];
+        }
+        return $this->client->request('/agent/conversations', array_merge([
+            'method' => 'POST',
+            'body' => $body,
+        ], $options));
+    }
+
+    /**
+     * Read one conversation with a page of its messages, in order. Paged rather than whole:
+     * a transcript has no natural ceiling. Omitting limit gives 100 messages, not all of them.
+     *
+     * Allowed roles: api, admin, developer, billing, user.
+     *
+     * @param string $conversationId The conversation to read
+     * @param array $params page (defaults to 1), limit (defaults to 100, capped at 500)
+     * @param array $options Additional request options
+     * @return array A one-element array with the conversation and its messages
+     */
+    public function getConversation(string $conversationId, array $params = [], array $options = []): array
+    {
+        $this->client->require(['conversationId' => $conversationId]);
+        $safeId = rawurlencode($conversationId);
+        $queryString = $this->client->getQueryString([
+            'page' => $params['page'] ?? null,
+            'limit' => $params['limit'] ?? null,
+        ]);
+        return $this->client->request("/agent/conversations/{$safeId}{$queryString}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
+     * Append one message to a conversation.
+     *
+     * Records a turn rather than generating one, so role is explicit — an assistant turn
+     * your own runtime produced is the normal case here. content is optional so a tool-only
+     * turn needs no prose.
+     *
+     * Allowed roles: api, admin, developer, billing, user.
+     *
+     * @param string $conversationId The conversation to append to
+     * @param array $params role (required), content, toolCalls, toolResults, ttfbMs,
+     *                      latencyMs, bargeInOccurred
+     * @param array $options Additional request options
+     * @return array The persisted message
+     */
+    public function appendConversationMessage(string $conversationId, array $params, array $options = []): array
+    {
+        $this->client->require([
+            'conversationId' => $conversationId,
+            'role' => $params['role'] ?? null,
+        ]);
+        $safeId = rawurlencode($conversationId);
+        $body = ['role' => $params['role']];
+        foreach (['content', 'toolCalls', 'toolResults', 'ttfbMs', 'latencyMs', 'bargeInOccurred'] as $key) {
+            if (isset($params[$key])) {
+                $body[$key] = $params[$key];
+            }
+        }
+        return $this->client->request("/agent/conversations/{$safeId}/messages", array_merge([
+            'method' => 'POST',
+            'body' => $body,
+        ], $options));
+    }
+
+    /**
+     * End a conversation, closing its open session.
+     *
+     * status records HOW it ended and cannot be recovered afterwards, so pass the one that
+     * actually happened. Ending an already-ended conversation is a no-op, so a retry after a
+     * dropped connection cannot overwrite it.
+     *
+     * Allowed roles: api, admin, developer, billing, user.
+     *
+     * @param string $conversationId The conversation to end
+     * @param array $params status ("completed"|"escalated"|"abandoned"), metadata
+     * @param array $options Additional request options
+     * @return array The ended conversation
+     */
+    public function endConversation(string $conversationId, array $params = [], array $options = []): array
+    {
+        $this->client->require(['conversationId' => $conversationId]);
+        $safeId = rawurlencode($conversationId);
+        $body = [];
+        if (isset($params['status'])) {
+            $body['status'] = $params['status'];
+        }
+        if (isset($params['metadata'])) {
+            $body['metadata'] = $params['metadata'];
+        }
+        return $this->client->request("/agent/conversations/{$safeId}", array_merge([
+            'method' => 'PUT',
+            'body' => $body,
+        ], $options));
+    }
+
+    /**
      * List an agent's per-channel settings.
      *
      * Allowed roles: api, admin, developer, billing, user.
@@ -200,7 +347,21 @@ class Agents
      * @param string $agentProfileId The agent the setting belongs to
      * @param string $channel The channel ("webchat"|"sms"|"voice")
      * @param array $settingData Fields to set: allowedTools (string[]), enabled (bool),
-     *                           channelPrompt (string), greeting (string|null)
+     *                           channelPrompt (string), greeting (string|null),
+     *                           llmProvider ("bedrock"|"openai"|"anthropic"|"groq"),
+     *                           llmModel (string|null), temperature (number 0-2),
+     *                           voiceId (string|null). Model settings are per-channel
+     *                           because each channel is served by a different runtime.
+     *                           Spoken channels also accept: speed (0.7-1.2), stability
+     *                           (0-1), similarityBoost (0-1), speechModel (string — how
+     *                           the agent is voiced, chosen independently of llmModel),
+     *                           turnEagerness ("patient"|"normal"|"eager"),
+     *                           turnTimeoutSeconds and initialWaitSeconds (1-300, or -1
+     *                           for no timeout), silenceEndCallSeconds (10-7200),
+     *                           maxCallDurationSeconds (60-7200),
+     *                           allowGreetingInterruption (bool), keyterms (string[] the
+     *                           transcriber is biased toward), backgroundSound
+     *                           (['preset' => string, 'volume' => 0.01-1]|null).
      * @param array $options Additional request options
      * @return array The response from the server
      */

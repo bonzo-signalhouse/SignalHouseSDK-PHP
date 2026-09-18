@@ -189,6 +189,32 @@ class Campaigns
     }
 
     /**
+     * Get the carrier throughput ceilings a campaign is currently sending under: the AT&T
+     * per-minute limit (per campaign, held 10% under the published ceiling) and the T-Mobile daily
+     * cap (per brand), each with its current tier and the next rung on the ladder, plus today's
+     * T-Mobile usage. Resolved from the same brand status / brand score rules the send path
+     * enforces with.
+     *
+     * @param string $campaignId The campaign identifier
+     * @param array $options Additional request options
+     * @return array The response from the server: campaignId, brandId, usecase, brand {status,
+     *     brandScore, entityType}, att {tier, scope, unit, sms {limit}, mms {limit}, marginPercent,
+     *     nextTier}, tmobile {tier, scope, unit, dailyLimit, thresholds, nextTier, usedToday {date,
+     *     segments, resetsAt} | null}. A null tier/limit means the carrier ladder does not apply
+     *     (unverified brand, GOVERNMENT entity, PUBLIC_SAFETY_RESTRICTED usecase); a null nextTier
+     *     means the top rung or a usecase-capped (LOW_VOLUME) campaign.
+     */
+    public function getCampaignThroughputLimits(string $campaignId, array $options = []): array
+    {
+        $this->client->require(['campaignId' => $campaignId]);
+        $queryString = $this->client->getQueryString(['campaignId' => $campaignId]);
+
+        return $this->client->request("/campaign/throughput-limits{$queryString}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
      * Create a new campaign
      *
      * @param array $campaignData The campaign data (see JS SDK CreateCampaignData for fields)

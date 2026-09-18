@@ -8,9 +8,11 @@ use SignalHouse\SDK\HttpClient;
  * Messages domain.
  *
  * Date-range parameters (startDate, endDate) on list and analytics methods
- * accept ISO-8601 date or timestamp strings. The server normalizes them to
- * full UTC-day boundaries: startDate -> start-of-UTC-day, endDate -> end-of-
- * UTC-day. The end day is always included; hourly resolution is not supported.
+ * accept ISO-8601 date or timestamp strings, bound per dateBounds. A bare date is
+ * always that whole UTC day. A timestamp is widened to its whole UTC day in "day"
+ * mode and bound as the instant it names, in whatever
+ * offset it was written ("2026-09-14T00:00:00-04:00" is 04:00Z), in "exact" mode,
+ * where day buckets also align to the offset endDate carries. Omitted, dateBounds is "day".
  * Business-number filters and SMS/MMS senders accept digits-only 5-6 digit
  * Short Codes or 10+ digit long numbers. Recipient numbers remain 10+ digits.
  */
@@ -44,6 +46,9 @@ class Messages
      *     sentimentScore range the label threshold produces, so unscored messages match no bucket and
      *     outbound messages are excluded. sortField accepts "createdAt", "segmentCount",
      *     "status", or "sentimentScore".
+     *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
+     *     whole UTC day. "exact": a timestamp is bound as the instant it
+     *     names and a bare date is its whole UTC day. Omitted: "day".
      * @param array $options Additional request options
      * @return array The response from the server. Inbound messages also carry sentimentScore
      *     (-100..100, null when unscored), sentimentLabel ("positive", "neutral" or "negative",
@@ -70,6 +75,9 @@ class Messages
      *     which are always returned split per type.
      *     carrierFamily filters by the recipient's resolved carrier family (Default, ATT, TMobile, Verizon, USCellular, GoogleVoice, ClearSky, Interop, RogueMobile, P2P);
      *     single value, array, or comma-separated string. Only accepted where the environment serves hourly analytics; elsewhere any value is rejected with a 400 -- omit the parameter unless it is wanted.
+     *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
+     *     whole UTC day. "exact": a timestamp is bound as the instant it
+     *     names and a bare date is its whole UTC day. Omitted: "day".
      * @param array $options Additional request options
      * @return array The response from the server. Also includes inbound-message sentiment for the
      *     requested scope: sentimentScore (volume-weighted average of every scored inbound message
@@ -107,6 +115,9 @@ class Messages
      *     breakdown ("carrier" | "carrierFamily") adds a byBreakdown time × dimension series to the
      *     response ({dimension, rows}: each row is one byDate bucket (_id) for one carrier or carrier
      *     family (key), top 50 keys by volume, 10DLC only) and caps the span at 31 days. Only accepted where the environment serves hourly analytics; elsewhere any value is rejected with a 400 -- omit the parameter unless it is wanted.
+     *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
+     *     whole UTC day. "exact": a timestamp is bound as the instant it
+     *     names and a bare date is its whole UTC day. Omitted: "day".
      * @param array $options Additional request options
      * @return array The response from the server with an array of analytics snapshot records.
      *     cardTotals and every byDate/byPhoneNumber/byCarrier row also carry that row's own
@@ -119,6 +130,39 @@ class Messages
     {
         $queryString = $this->client->getQueryString($params);
         return $this->client->request("/message/analytics/detail{$queryString}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
+     * Get per-minute send throughput (peak segments per minute, sending minutes, minutes at a
+     * ceiling) per time bucket and per carrier family. Measured from SENT transitions at
+     * campaign x carrier-family grain -- the grain carrier ceilings are enforced at -- so a peak
+     * here is the figure a ceiling is compared against. Only accepted where the environment serves
+     * hourly analytics; elsewhere the request is rejected with a 400.
+     *
+     * @param array $params Query parameters: groupId (required), brandId, campaignId (wins over
+     *     brandId; single value, array, or comma-separated string), carrierFamily (ATT, TMobile,
+     *     Verizon, USCellular, ...; single value, array, or comma-separated string), startDate and
+     *     endDate (required, ISO-8601; both are bound per dateBounds, a bare date being its whole UTC day
+     *     either way; startDate is then floored to its hour at hour granularity and to its minute at day
+     *     granularity, and at day granularity in "exact" mode the buckets align to the UTC offset endDate carries; span capped at
+     *     35 days), granularity ("hour" default, span capped at 7 days | "day"), ceiling (positive
+     *     integer segments per minute; when given every row also reports minutesAtCeiling, otherwise
+     *     minutesAtCeiling is null).
+     *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
+     *     whole UTC day. "exact": a timestamp is bound as the instant it
+     *     names and a bare date is its whole UTC day. Omitted: "day".
+     * @param array $options Additional request options
+     * @return array The response from the server: totals, byDate, byCarrierFamily and byBreakdown
+     *     ({dimension: "carrierFamily", rows}). Every row carries segments, messages,
+     *     peakSegmentsPerMinute, peakMessagesPerMinute, peakMinute (UTC "YYYY-MM-DD HH:MM:SS", null
+     *     when no traffic), sendingMinutes, averageSegmentsPerSendingMinute and minutesAtCeiling.
+     */
+    public function getAnalyticsThroughput(array $params = [], array $options = []): array
+    {
+        $queryString = $this->client->getQueryString($params);
+        return $this->client->request("/message/analytics/throughput{$queryString}", array_merge([
             'method' => 'GET',
         ], $options));
     }
@@ -152,6 +196,9 @@ class Messages
      *     does not narrow the message counts, which are always returned split per type.
      *     carrierFamily filters by the recipient's resolved carrier family (Default, ATT, TMobile, Verizon, USCellular, GoogleVoice, ClearSky, Interop, RogueMobile, P2P);
      *     single value, array, or comma-separated string. Only accepted where the environment serves hourly analytics; elsewhere any value is rejected with a 400 -- omit the parameter unless it is wanted.
+     *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
+     *     whole UTC day. "exact": a timestamp is bound as the instant it
+     *     names and a bare date is its whole UTC day. Omitted: "day".
      * @param array $options Additional request options
      * @return array { rows, totalCount, page, limit }. Each row carries that subgroup's
      *     inbound-message sentiment alongside its message counters: sentimentScore
@@ -177,6 +224,9 @@ class Messages
      *     channel is selected, totalErrors reflects only that channel.
      *     carrierFamily filters by the recipient's resolved carrier family (Default, ATT, TMobile, Verizon, USCellular, GoogleVoice, ClearSky, Interop, RogueMobile, P2P);
      *     single value, array, or comma-separated string. Only accepted where the environment serves hourly analytics; elsewhere any value is rejected with a 400 -- omit the parameter unless it is wanted.
+     *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
+     *     whole UTC day. "exact": a timestamp is bound as the instant it
+     *     names and a bare date is its whole UTC day. Omitted: "day".
      * @param array $options Additional request options
      * @return array { rows, totalCount, totalErrors: { sms, mms, p2p, all }, page, limit }
      */
@@ -194,6 +244,9 @@ class Messages
      * @param array $params Filter parameters. channel accepts "tenDLC", "virtualLongCode", "tollFree", or "shortCode"
      *     as a single value or array. Opt-outs are A2P-only, so "p2p" applies no scope; tenDLC also
      *     includes older opt-outs with no channel.
+     *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
+     *     whole UTC day. "exact": a timestamp is bound as the instant it
+     *     names and a bare date is its whole UTC day. Omitted: "day".
      * @param array $options Additional request options
      * @return array The response from the server with totals, byDate, byPhoneNumber, byCarrier,
      *     byKeyword. byKeyword breaks opt-outs down by the normalized keyword that revoked consent
@@ -216,6 +269,9 @@ class Messages
      * @param array $params Filter parameters. channel accepts "tenDLC", "virtualLongCode", "tollFree", or "shortCode"
      *     as a single value or array. Opt-outs are A2P-only, so "p2p" applies no scope; tenDLC also
      *     includes older opt-outs with no channel.
+     *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
+     *     whole UTC day. "exact": a timestamp is bound as the instant it
+     *     names and a bare date is its whole UTC day. Omitted: "day".
      * @param array $options Additional request options
      * @return array The response from the server with paginated DNC records. Each record carries
      *     optOutKeyword — the normalized keyword that revoked consent (e.g. "stop", "opt out"; a
