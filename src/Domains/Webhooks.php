@@ -69,6 +69,26 @@ class Webhooks
     }
 
     /**
+     * Rotate a webhook's signing secret, or give a webhook created before signing its first one.
+     * The response includes the new plaintext signingSecret, returned this one time only. The replaced
+     * secret keeps working for $graceSeconds (default 86400, max 604800, 0 = stop now).
+     *
+     * @param string $id The webhook ID
+     * @param int|null $graceSeconds How long the replaced secret stays valid
+     * @param array $options Additional request options
+     * @return array The response from the server
+     */
+    public function rotateWebhookSecret(string $id, ?int $graceSeconds = null, array $options = []): array
+    {
+        $this->client->require(['id' => $id]);
+        $safeId = rawurlencode($id);
+        return $this->client->request("/webhook/{$safeId}/rotate-secret", array_merge([
+            'method' => 'POST',
+            'body' => $graceSeconds === null ? new \stdClass() : ['graceSeconds' => $graceSeconds],
+        ], $options));
+    }
+
+    /**
      * Delete a webhook (mark as inactive)
      *
      * @param string $id The webhook ID

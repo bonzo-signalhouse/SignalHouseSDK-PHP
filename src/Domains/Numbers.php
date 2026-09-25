@@ -126,7 +126,7 @@ class Numbers
     /**
      * Get available phone numbers for purchase
      *
-     * @param array $params Filter parameters (smsEnabled, mmsEnabled, voiceEnabled, country, state, city, npa, nxx, phoneNumber, limit, page). City is a prefix requiring country US/CA and state/province.
+     * @param array $params Filter parameters (smsEnabled, mmsEnabled, voiceEnabled, country, state, city, npa, nxx, phoneNumber, limit, page). City is a prefix requiring country US and state.
      * @param array $options Additional request options
      * @return array The response from the server
      */

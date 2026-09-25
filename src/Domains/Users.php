@@ -84,7 +84,9 @@ class Users
     /**
      * Create a new service user (API key)
      *
-     * @param array $data Service user data (groupId, name, role)
+     * @param array $data Service user data (groupId, name, role). Customer API keys (role "api") may also set
+     *                    allowedIps (IPv4/IPv6 addresses or CIDR ranges, max 100) and allowedCountries
+     *                    (ISO 3166-1 alpha-2 codes such as "US", max 250); both must match when both are set.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -101,7 +103,8 @@ class Users
      * Update a user's information
      *
      * @param string $id The user ID
-     * @param array $data The data to update
+     * @param array $data The data to update. For a customer API key, allowedIps / allowedCountries replace its
+     *                    restrictions ([] removes one); this needs an interactive admin or developer session.
      * @param array $options Additional request options
      * @return array The response from the server
      */
