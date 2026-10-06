@@ -78,8 +78,11 @@ class Agents
      * @param array $profileData The agent profile data. Required: groupId (string starting with 'G') and name (string).
      *                           Optional: subgroupId (string starting with 'S', or null for a group-level agent),
      *                           status ("active"|"inactive"), systemPrompt, greeting, guardrails,
-     *                           Model, voice and sampling settings are per-channel and live on
-     *                           the channel setting, not here.
+     *                           sendAuthority ("review"|"autopilot", defaults to "review"; deployments
+     *                           may override it per subgroup). publishStatus and publishedAt are
+     *                           read-only and change only through publishAgentProfile and
+     *                           unpublishAgentProfile. Model, voice and sampling settings are
+     *                           per-channel and live on the channel setting, not here.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -99,7 +102,9 @@ class Agents
      *
      * @param string $id The id of the agent profile to update
      * @param array $updateData The fields to update. All optional: name, status ("active"|"inactive"),
-     *                          systemPrompt, greeting, guardrails. Model, voice and sampling
+     *                          systemPrompt, greeting, guardrails, sendAuthority ("review"|"autopilot").
+     *                          publishStatus and publishedAt are read-only and change only through
+     *                          publishAgentProfile and unpublishAgentProfile. Model, voice and sampling
      *                          settings are per-channel and live on the channel setting, not here.
      *                          The scope fields groupId and subgroupId are immutable.
      * @param array $options Additional request options
@@ -393,6 +398,109 @@ class Agents
         $safeChannel = rawurlencode($channel);
         return $this->client->request("/agent/profiles/{$safeId}/channels/{$safeChannel}", array_merge([
             'method' => 'DELETE',
+        ], $options));
+    }
+
+    /**
+     * List a group-level agent's deployments to subgroups. Each deployment carries
+     * agentDeploymentId, groupId, subgroupId, agentProfileId, sendAuthorityOverride,
+     * sendAuthorityChangedBy, sendAuthorityChangedAt, enabled, createdAt, and updatedAt.
+     *
+     * Allowed roles: api, admin, developer, billing, user.
+     *
+     * @param string $agentProfileId The agent whose deployments to list
+     * @param array $options Additional request options
+     * @return array The response from the server
+     */
+    public function getAgentDeployments(string $agentProfileId, array $options = []): array
+    {
+        $this->client->require(['agentProfileId' => $agentProfileId]);
+        $safeId = rawurlencode($agentProfileId);
+        return $this->client->request("/agent/profiles/{$safeId}/deployments", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
+     * Deploy a group-level agent to a subgroup, or change that deployment (upsert). One row per
+     * (agent, subgroup); the subgroup is taken from the path.
+     *
+     * Allowed roles: api, admin, developer.
+     *
+     * @param string $agentProfileId The agent to deploy
+     * @param string $subgroupId The subgroup to deploy to (starts with 'S')
+     * @param array $deploymentData Fields to set: sendAuthorityOverride ("review"|"autopilot"|null;
+     *                              null clears the override so the deployment inherits the profile
+     *                              default), enabled (bool, defaults to true).
+     * @param array $options Additional request options
+     * @return array The response from the server
+     */
+    public function upsertAgentDeployment(string $agentProfileId, string $subgroupId, array $deploymentData = [], array $options = []): array
+    {
+        $this->client->require(['agentProfileId' => $agentProfileId, 'subgroupId' => $subgroupId]);
+        $safeId = rawurlencode($agentProfileId);
+        $safeSubgroupId = rawurlencode($subgroupId);
+        return $this->client->request("/agent/profiles/{$safeId}/deployments/{$safeSubgroupId}", array_merge([
+            'method' => 'PUT',
+            'body' => $deploymentData,
+        ], $options));
+    }
+
+    /**
+     * Remove an agent's deployment from a subgroup.
+     *
+     * Allowed roles: api, admin, developer.
+     *
+     * @param string $agentProfileId The deployed agent
+     * @param string $subgroupId The subgroup to remove the deployment from
+     * @param array $options Additional request options
+     * @return array The response from the server (the removed deployment)
+     */
+    public function deleteAgentDeployment(string $agentProfileId, string $subgroupId, array $options = []): array
+    {
+        $this->client->require(['agentProfileId' => $agentProfileId, 'subgroupId' => $subgroupId]);
+        $safeId = rawurlencode($agentProfileId);
+        $safeSubgroupId = rawurlencode($subgroupId);
+        return $this->client->request("/agent/profiles/{$safeId}/deployments/{$safeSubgroupId}", array_merge([
+            'method' => 'DELETE',
+        ], $options));
+    }
+
+    /**
+     * Publish an agent profile, setting publishStatus to "published" and stamping publishedAt.
+     * The server rejects the call with 400 when the agent has no enabled deployment, and with
+     * 409 when the agent is inactive.
+     *
+     * Allowed roles: api, admin, developer.
+     *
+     * @param string $agentProfileId The agent profile to publish
+     * @param array $options Additional request options
+     * @return array The response from the server (the published profile)
+     */
+    public function publishAgentProfile(string $agentProfileId, array $options = []): array
+    {
+        $this->client->require(['agentProfileId' => $agentProfileId]);
+        $safeId = rawurlencode($agentProfileId);
+        return $this->client->request("/agent/profiles/{$safeId}/publish", array_merge([
+            'method' => 'POST',
+        ], $options));
+    }
+
+    /**
+     * Return an agent profile to draft (publishStatus "draft").
+     *
+     * Allowed roles: api, admin, developer.
+     *
+     * @param string $agentProfileId The agent profile to unpublish
+     * @param array $options Additional request options
+     * @return array The response from the server (the unpublished profile)
+     */
+    public function unpublishAgentProfile(string $agentProfileId, array $options = []): array
+    {
+        $this->client->require(['agentProfileId' => $agentProfileId]);
+        $safeId = rawurlencode($agentProfileId);
+        return $this->client->request("/agent/profiles/{$safeId}/unpublish", array_merge([
+            'method' => 'POST',
         ], $options));
     }
 

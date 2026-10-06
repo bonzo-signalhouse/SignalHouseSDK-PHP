@@ -78,7 +78,8 @@ class Numbers
     /**
      * Get a list of phone numbers with optional filters
      *
-     * @param array $params Filter parameters (phoneNumber, campaignId, brandId, subgroupId, groupId, page, limit)
+     * @param array $params Filter parameters (phoneNumber, campaignId, registrationId, brandId, subgroupId, groupId, page, limit).
+     *     registrationId filters to numbers provisioned under this registration.
      * @param array $options Additional request options
      * @return array The response from the server
      *

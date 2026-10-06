@@ -29,7 +29,27 @@ class Messages
         $this->enableAdmin = $enableAdmin;
     }
 
-    /** Estimate Canadian SMS/MMS retail cost in microdollars; no charge or send. Requires a Ready Canadian sender and Canadian or US recipients, and is unavailable unless Canada is enabled for the environment. */
+    /**
+     * Build the query string for a regional read, JSON-encoding an array regionScopes
+     *
+     * @param array $params Filter parameters, possibly holding a regionScopes array
+     * @return string The query string
+     */
+    private function reportingQueryString(array $params): string
+    {
+        if (isset($params['regionScopes']) && is_array($params['regionScopes'])) {
+            $params['regionScopes'] = json_encode($params['regionScopes'], JSON_THROW_ON_ERROR);
+        }
+        return $this->client->getQueryString($params);
+    }
+
+    /**
+     * Estimate Canadian or UK retail cost in microdollars; no charge or send. A Ready Canadian sender takes SMS or
+     * MMS to Canadian or US recipients; a UK (+44) virtual long code takes SMS only to GB mobile recipients (10-15
+     * digits). The response region is "CA" or "GB". Unavailable unless that region is enabled for the environment.
+     * The sender may also be a READY alphanumeric sender ID (e.g. "ACME"; UK recipients, SMS only); its estimate
+     * counts the "\nOpt out: sihou.io/o/{code}" footer the server appends to every such message.
+     */
     public function estimateMessage(string $senderPhoneNumber, array $recipientPhoneNumbers, string $messageBody, array $options = [], string $messageType = 'SMS'): array
     {
         return $this->client->request('/message/estimate', array_merge(['method' => 'POST', 'body' => compact('senderPhoneNumber', 'recipientPhoneNumbers', 'messageBody', 'messageType')], $options));
@@ -46,11 +66,20 @@ class Messages
      *     sentimentScore range the label threshold produces, so unscored messages match no bucket and
      *     outbound messages are excluded. errorCode filters FAILED messages by Signal House error code
      *     (single value or array); "OUT" is the campaign opt-out, displayed as RECIPIENT_OPTED_OUT.
+     *     senderPhoneNumber/recipientPhoneNumber accept a plain digits-only exact value, or a value
+     *     containing % as a wildcard for a partial match (e.g. "%1234" matches numbers ending in
+     *     1234); 3-15 digits are required alongside any %.
      *     sortField accepts "createdAt", "segmentCount",
      *     "status", or "sentimentScore".
+     *     registrationId filters to messages attributed to these registrations; single value or array.
+     *     It cannot be combined with campaignId, and each id must belong to the group.
      *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
      *     whole UTC day. "exact": a timestamp is bound as the instant it
      *     names and a bare date is its whole UTC day. Omitted: "day".
+     *     region filters by "US", "GB", or "CA" (any case of "UK"/"GB"/"GBR"/"United Kingdom" is accepted for GB) as a single value or array.
+     *     regionScopes is an array of OR-ed branches ['region', 'channels', 'brandId'?, 'campaignId'?,
+     *     'phoneNumber'?] (channels: tenDLC, virtualLongCode, tollFree, shortCode, p2p), JSON-encoded for
+     *     the query; a string is sent as-is and [] matches nothing.
      * @param array $options Additional request options
      * @return array The response from the server. Inbound messages also carry sentimentScore
      *     (-100..100, null when unscored), sentimentLabel ("positive", "neutral" or "negative",
@@ -58,7 +87,7 @@ class Messages
      */
     public function getMessages(array $params = [], array $options = []): array
     {
-        $queryString = $this->client->getQueryString($params);
+        $queryString = $this->reportingQueryString($params);
         return $this->client->request("/message{$queryString}", array_merge([
             'method' => 'GET',
         ], $options));
@@ -72,6 +101,8 @@ class Messages
      *     channel; p2p is matched by carrier. subgroupId, brandId, campaignId, phoneNumber and
      *     carrier each accept a single value, an array, or a comma-separated string; groupId is
      *     single-valued.
+     *     registrationId filters to traffic attributed to these registrations (hourly analytics only;
+     *     a 400 while hourly reads are off); single value or array. A phoneNumber filter takes precedence.
      *     messageType scopes the SENTIMENT figures to SMS, MMS or P2P (single value, array, or
      *     comma-separated string); omit for all scored types. It does NOT narrow the message counts,
      *     which are always returned split per type.
@@ -80,6 +111,11 @@ class Messages
      *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
      *     whole UTC day. "exact": a timestamp is bound as the instant it
      *     names and a bare date is its whole UTC day. Omitted: "day".
+     *     region filters by "US", "GB", or "CA" (any case of "UK"/"GB"/"GBR"/"United Kingdom" is accepted for GB) as a single value or array.
+     *     regionScopes is an array of OR-ed branches ['region', 'channels', 'brandId'?, 'campaignId'?,
+     *     'phoneNumber'?] (channels: tenDLC, virtualLongCode, tollFree, shortCode, p2p), JSON-encoded for
+     *     the query; a string is sent as-is and [] matches nothing. Both are accepted only where the
+     *     environment serves hourly analytics; elsewhere any value is rejected with a 400.
      * @param array $options Additional request options
      * @return array The response from the server. Also includes inbound-message sentiment for the
      *     requested scope: sentimentScore (volume-weighted average of every scored inbound message
@@ -89,7 +125,7 @@ class Messages
      */
     public function getAnalytics(array $params = [], array $options = []): array
     {
-        $queryString = $this->client->getQueryString($params);
+        $queryString = $this->reportingQueryString($params);
         return $this->client->request("/message/analytics{$queryString}", array_merge([
             'method' => 'GET',
         ], $options));
@@ -103,6 +139,8 @@ class Messages
      *     channel; p2p is a first-class channel. subgroupId, brandId, campaignId, phoneNumber and
      *     carrier each accept a single value, an array, or a comma-separated string; groupId is
      *     single-valued.
+     *     registrationId filters to traffic attributed to these registrations (hourly analytics only;
+     *     a 400 while hourly reads are off); single value or array. A phoneNumber filter takes precedence.
      *     messageType scopes the SENTIMENT figures to SMS, MMS or P2P (single value, array, or
      *     comma-separated string); omit for all scored types. It does NOT narrow the message counts,
      *     which are always returned split per type.
@@ -120,6 +158,11 @@ class Messages
      *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
      *     whole UTC day. "exact": a timestamp is bound as the instant it
      *     names and a bare date is its whole UTC day. Omitted: "day".
+     *     region filters by "US", "GB", or "CA" (any case of "UK"/"GB"/"GBR"/"United Kingdom" is accepted for GB) as a single value or array.
+     *     regionScopes is an array of OR-ed branches ['region', 'channels', 'brandId'?, 'campaignId'?,
+     *     'phoneNumber'?] (channels: tenDLC, virtualLongCode, tollFree, shortCode, p2p), JSON-encoded for
+     *     the query; a string is sent as-is and [] matches nothing. Both are accepted only where the
+     *     environment serves hourly analytics; elsewhere any value is rejected with a 400.
      * @param array $options Additional request options
      * @return array The response from the server with an array of analytics snapshot records.
      *     cardTotals and every byDate/byPhoneNumber/byCarrier row also carry that row's own
@@ -130,7 +173,7 @@ class Messages
      */
     public function getAnalyticsDetail(array $params = [], array $options = []): array
     {
-        $queryString = $this->client->getQueryString($params);
+        $queryString = $this->reportingQueryString($params);
         return $this->client->request("/message/analytics/detail{$queryString}", array_merge([
             'method' => 'GET',
         ], $options));
@@ -144,7 +187,9 @@ class Messages
      * hourly analytics; elsewhere the request is rejected with a 400.
      *
      * @param array $params Query parameters: groupId (required), brandId, campaignId (wins over
-     *     brandId; single value, array, or comma-separated string), carrierFamily (ATT, TMobile,
+     *     brandId; single value, array, or comma-separated string), registrationId (filter to traffic
+     *     attributed to these registrations (hourly analytics only; a 400 while hourly reads are off);
+     *     single value or array), carrierFamily (ATT, TMobile,
      *     Verizon, USCellular, ...; single value, array, or comma-separated string), startDate and
      *     endDate (required, ISO-8601; both are bound per dateBounds, a bare date being its whole UTC day
      *     either way; startDate is then floored to its hour at hour granularity and to its minute at day
@@ -174,9 +219,14 @@ class Messages
      * Analytics page, scoped to a single group. Sourced from ClickHouse — only items with
      * at least one message are returned.
      *
-     * @param array $params Filter parameters (groupId required)
+     * @param array $params Filter parameters (groupId required). region restricts the options to "US", "GB",
+     *     or "CA" (any case of "UK"/"GB"/"GBR"/"United Kingdom" is accepted for GB) as a single value or array; only accepted where the environment
+     *     serves hourly analytics, elsewhere any value is rejected with a 400.
      * @param array $options Additional request options
-     * @return array The response with subgroups, brands, campaigns, and phoneNumbers arrays
+     * @return array The response with subgroups, brands, campaigns, and phoneNumbers arrays. Each phone
+     *     number carries type (TOLL_FREE, SHORT_CODE, ALPHANUMERIC, VIRTUAL_LONG_NUMBER, ...) and country
+     *     (ISO-2), null when unknown: TOLL_FREE, SHORT_CODE and ALPHANUMERIC are channels by type; any other
+     *     US number is 10DLC and a non-US one is a Virtual Long Code.
      */
     public function getAnalyticsFilterOptions(array $params = [], array $options = []): array
     {
@@ -198,9 +248,16 @@ class Messages
      *     does not narrow the message counts, which are always returned split per type.
      *     carrierFamily filters by the recipient's resolved carrier family (Default, ATT, TMobile, Verizon, USCellular, GoogleVoice, ClearSky, Interop, RogueMobile, P2P, Standard, IceWireless);
      *     single value, array, or comma-separated string. Only accepted where the environment serves hourly analytics; elsewhere any value is rejected with a 400 -- omit the parameter unless it is wanted.
+     *     registrationId filters to traffic attributed to these registrations (hourly analytics only;
+     *     a 400 while hourly reads are off); single value or array. A phoneNumber filter takes precedence.
      *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
      *     whole UTC day. "exact": a timestamp is bound as the instant it
      *     names and a bare date is its whole UTC day. Omitted: "day".
+     *     region filters by "US", "GB", or "CA" (any case of "UK"/"GB"/"GBR"/"United Kingdom" is accepted for GB) as a single value or array.
+     *     regionScopes is an array of OR-ed branches ['region', 'channels', 'brandId'?, 'campaignId'?,
+     *     'phoneNumber'?] (channels: tenDLC, virtualLongCode, tollFree, shortCode, p2p), JSON-encoded for
+     *     the query; a string is sent as-is and [] matches nothing. Both are accepted only where the
+     *     environment serves hourly analytics; elsewhere any value is rejected with a 400.
      * @param array $options Additional request options
      * @return array { rows, totalCount, page, limit }. Each row carries that subgroup's
      *     inbound-message sentiment alongside its message counters: sentimentScore
@@ -211,7 +268,7 @@ class Messages
      */
     public function getAnalyticsBySubgroup(array $params = [], array $options = []): array
     {
-        $queryString = $this->client->getQueryString($params);
+        $queryString = $this->reportingQueryString($params);
         return $this->client->request("/message/analytics/by-subgroup{$queryString}", array_merge([
             'method' => 'GET',
         ], $options));
@@ -226,15 +283,22 @@ class Messages
      *     channel is selected, totalErrors reflects only that channel.
      *     carrierFamily filters by the recipient's resolved carrier family (Default, ATT, TMobile, Verizon, USCellular, GoogleVoice, ClearSky, Interop, RogueMobile, P2P, Standard, IceWireless);
      *     single value, array, or comma-separated string. Only accepted where the environment serves hourly analytics; elsewhere any value is rejected with a 400 -- omit the parameter unless it is wanted.
+     *     registrationId filters to traffic attributed to these registrations (hourly analytics only;
+     *     a 400 while hourly reads are off); single value or array. A phoneNumber filter takes precedence.
      *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
      *     whole UTC day. "exact": a timestamp is bound as the instant it
      *     names and a bare date is its whole UTC day. Omitted: "day".
+     *     region filters by "US", "GB", or "CA" (any case of "UK"/"GB"/"GBR"/"United Kingdom" is accepted for GB) as a single value or array.
+     *     regionScopes is an array of OR-ed branches ['region', 'channels', 'brandId'?, 'campaignId'?,
+     *     'phoneNumber'?] (channels: tenDLC, virtualLongCode, tollFree, shortCode, p2p), JSON-encoded for
+     *     the query; a string is sent as-is and [] matches nothing. Both are accepted only where the
+     *     environment serves hourly analytics; elsewhere any value is rejected with a 400.
      * @param array $options Additional request options
      * @return array { rows, totalCount, totalErrors: { sms, mms, p2p, all }, page, limit }
      */
     public function getAnalyticsByErrorCode(array $params = [], array $options = []): array
     {
-        $queryString = $this->client->getQueryString($params);
+        $queryString = $this->reportingQueryString($params);
         return $this->client->request("/message/analytics/by-error-code{$queryString}", array_merge([
             'method' => 'GET',
         ], $options));
@@ -246,9 +310,16 @@ class Messages
      * @param array $params Filter parameters. channel accepts "tenDLC", "virtualLongCode", "tollFree", or "shortCode"
      *     as a single value or array. Opt-outs are A2P-only, so "p2p" applies no scope; tenDLC also
      *     includes older opt-outs with no channel.
+     *     registrationId filters to traffic attributed to these registrations (hourly analytics only;
+     *     a 400 while hourly reads are off); single value or array. A phoneNumber filter takes precedence.
      *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
      *     whole UTC day. "exact": a timestamp is bound as the instant it
      *     names and a bare date is its whole UTC day. Omitted: "day".
+     *     region filters by "US", "GB", or "CA" (any case of "UK"/"GB"/"GBR"/"United Kingdom" is accepted for GB) as a single value or array.
+     *     regionScopes is an array of OR-ed branches ['region', 'channels', 'brandId'?, 'campaignId'?,
+     *     'phoneNumber'?] (channels: tenDLC, virtualLongCode, tollFree, shortCode, p2p), JSON-encoded for
+     *     the query; a string is sent as-is and [] matches nothing. Both are accepted only where the
+     *     environment serves hourly analytics; elsewhere any value is rejected with a 400.
      * @param array $options Additional request options
      * @return array The response from the server with totals, byDate, byPhoneNumber, bySenderNumber,
      *     byCampaign, bySubgroup, byType, byCarrier, byKeyword. bySenderNumber ({senderPhoneNumber,
@@ -264,7 +335,7 @@ class Messages
      */
     public function getDncAnalytics(array $params = [], array $options = []): array
     {
-        $queryString = $this->client->getQueryString($params);
+        $queryString = $this->reportingQueryString($params);
         return $this->client->request("/message/dnc/analytics{$queryString}", array_merge([
             'method' => 'GET',
         ], $options));
@@ -276,9 +347,16 @@ class Messages
      * @param array $params Filter parameters. channel accepts "tenDLC", "virtualLongCode", "tollFree", or "shortCode"
      *     as a single value or array. Opt-outs are A2P-only, so "p2p" applies no scope; tenDLC also
      *     includes older opt-outs with no channel.
+     *     registrationId filters to traffic attributed to these registrations (hourly analytics only;
+     *     a 400 while hourly reads are off); single value or array. A phoneNumber filter takes precedence.
      *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
      *     whole UTC day. "exact": a timestamp is bound as the instant it
      *     names and a bare date is its whole UTC day. Omitted: "day".
+     *     region filters by "US", "GB", or "CA" (any case of "UK"/"GB"/"GBR"/"United Kingdom" is accepted for GB) as a single value or array.
+     *     regionScopes is an array of OR-ed branches ['region', 'channels', 'brandId'?, 'campaignId'?,
+     *     'phoneNumber'?] (channels: tenDLC, virtualLongCode, tollFree, shortCode, p2p), JSON-encoded for
+     *     the query; a string is sent as-is and [] matches nothing. Both are accepted only where the
+     *     environment serves hourly analytics; elsewhere any value is rejected with a 400.
      * @param array $options Additional request options
      * @return array The response from the server with paginated DNC records. Each record carries
      *     senderPhoneNumber — the first business number that received the opt-out (set once, never
@@ -291,7 +369,7 @@ class Messages
      */
     public function getDncRecords(array $params = [], array $options = []): array
     {
-        $queryString = $this->client->getQueryString($params);
+        $queryString = $this->reportingQueryString($params);
         return $this->client->request("/message/dnc{$queryString}", array_merge([
             'method' => 'GET',
         ], $options));
@@ -310,7 +388,7 @@ class Messages
      * is "OUT"; null on success or on failures with no assigned code) that is also included on the
      * FAILED status-callback payload.
      *
-     * @param string $senderPhoneNumber Digits-only 5-6 digit Short Code or 10+ digit long number
+     * @param string $senderPhoneNumber Digits-only 5-6 digit Short Code or 10+ digit long number, or a READY alphanumeric sender ID (e.g. "ACME"; UK recipients and SMS only). Every message from an alphanumeric sender gets "\nOpt out: sihou.io/o/{code}" appended by the server, counted in segments.
      * @param string|array $recipientPhoneNumbers 10+ digit recipients; Short Codes permit exactly one, and it must be a +1 (US/Canada) number (a bare 10-digit number is treated as +1)
      * @param string $messageBody The message body
      * @param string|null $statusCallbackUrl Optional callback URL for status updates

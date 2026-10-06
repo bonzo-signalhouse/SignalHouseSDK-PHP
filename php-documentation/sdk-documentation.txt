@@ -221,12 +221,14 @@ MESSAGES  ($signalHouse->messages)
   getMessages(?string $id, ?string $campaignId, ?string $brandId,
       ?string $subgroupId, ?string $groupId, ?string $status,
       ?string $direction, ?string $messageType, ?string $carrier,
+      ?string $sentimentLabel, ?string $errorCode,
       ?string $startDate, ?string $endDate, ?string $sortField,
       ?string $sortOrder, ?int $page, ?int $limit, ?array $options)
     List messages with extensive filters.
 
   getAnalytics(?string $groupId, ?string $subgroupId, ?string $brandId,
-      ?string $campaignId, ?string $phoneNumber, ?string $carrier,
+      ?string $campaignId, string|array|null $registrationId,
+      ?string $phoneNumber, ?string $carrier,
       ?string $startDate, ?string $endDate, ?array $options)
     Get aggregated message analytics.
 
@@ -275,9 +277,10 @@ NOTIFICATIONS  ($signalHouse->notifications)
 NUMBERS  ($signalHouse->numbers)
 --------------------------------------------------------------------------------
   getPhoneNumbers(?string $phoneNumber, ?string $campaignId,
-      ?string $brandId, ?string $subgroupId, ?string $groupId,
-      ?int $page, ?int $limit, ?array $options)
+      ?string $registrationId, ?string $brandId, ?string $subgroupId,
+      ?string $groupId, ?int $page, ?int $limit, ?array $options)
     List your phone numbers with filters.
+    registrationId: filter to numbers provisioned under this registration.
 
   getNumberHealth(string $phoneNumber, ?array $options)
     Get the portal-parity health score (1–10) for an owned phone number.
@@ -340,6 +343,16 @@ SHORTLINKS  ($signalHouse->shortlinks)
   getShortlinkRedirect(string $shortlinkId, ?array $options)
     Get the redirect URL for a shortlink.
 
+  getOptOut(string $code, ?array $options)
+    Public, no auth. GET /shortlink/optout/:code for the alphanumeric-sender
+    opt-out link (sihou.io/o/{code}): { code, senderName, maskedRecipient,
+    optedOut }; 404 for an unknown code.
+
+  confirmOptOut(string $code, ?array $options)
+    Public, no auth. POST /shortlink/optout/:code (no body) opts the recipient
+    out; idempotent. Returns { code, senderName, maskedRecipient, optedOut: true };
+    404 for an unknown code.
+
 
 SUBGROUPS  ($signalHouse->subgroups)
 --------------------------------------------------------------------------------
@@ -385,10 +398,12 @@ USERS  ($signalHouse->users)
     Create a new user.
 
   createServiceUser(array $data, ?array $options)
-    Create a service user (API key).
+    Create a service user (API key). Optional allowedIps (IPs/CIDRs) and
+    allowedCountries (ISO 3166-1 alpha-2) restrict where a customer key is accepted from.
 
   updateUser(string $id, array $data, ?array $options)
-    Update user information.
+    Update user information. For a customer API key, allowedIps / allowedCountries
+    replace its restrictions ([] removes one); needs an interactive admin/developer session.
 
   deleteUser(string $id, ?array $options)
     Delete (deactivate) a user.
@@ -411,7 +426,12 @@ WEBHOOKS  ($signalHouse->webhooks)
     Create a new webhook.
 
   updateWebhook(string $id, array $updateData, ?array $options)
-    Update webhook configuration.
+    Update webhook configuration, including authType, apiHeaderPrefix and credentials
+    (changed in place). Responses carry hasSigningSecret/hasCredentials, never secrets.
+
+  rotateWebhookSecret(string $id, ?int $graceSeconds, ?array $options)
+    Rotate the signing secret (or create a first one for an older webhook). Returns the new
+    signingSecret once; the old secret keeps working for graceSeconds (default 24h, max 7 days).
 
   deleteWebhook(string $id, ?array $options)
     Delete a webhook.
@@ -591,3 +611,158 @@ WEBHOOKS  ($signalHouse->webhooks)
 
       return response()->json($response['data']);
   });
+
+
+REGISTRATIONS AND REGIONAL REPORTING
+--------------------------------------------------------------------------------
+A registration is what a jurisdiction (or its provider) requires before a sender
+may message. One model covers every jurisdiction: `region` is the jurisdiction
+(US, GB, CA, AU; any case of "UK"/"GB"/"GBR"/"United Kingdom" is accepted for GB) and `type` selects the shape of `data`.
+Types: TEN_DLC_BRAND, TEN_DLC_CAMPAIGN, TOLL_FREE_BRAND, TOLL_FREE_CAMPAIGN,
+SHORT_CODE_BRAND, SHORT_CODE_PROGRAM, SHORT_CODE_LEASE (declared, not yet
+acquirable), VIRTUAL_LONG_CODE (UK, behind the environment's UK flag; Australia
+scaffolded, not available) and ALPHANUMERIC_SENDER_ID (UK; Australia scaffolded, not
+available). Kinds: identity, program, sender. Channels: tenDLC, tollFree,
+shortCode, virtualLongCode, alphanumeric.
+
+Start with the catalog. GET /registration/catalog?region= returns {region,
+jurisdiction, sendingRequiresRegistration, registeredThrough, provisioning, types:[{type, kind,
+channel, provider, bundles, quantity:{min,max}, requiresParent, available}]}.
+registeredThrough is "registration" (use this API), "brandsAndCampaigns" (the US:
+register through the Brands and Campaigns APIs) or null (nothing to register, e.g.
+Canada). An unlisted country requires registration and offers no types.
+Quote and submit only a type whose `available` is true; other types answer 400.
+
+GET /registration/quotes?region=&type=&quantity= (1-100, default 1) returns
+{data:[quotes]}, one quote per capability bundle: {capabilities, quantity,
+currency, setupAmount, monthlyAmount, totalSetupAmount, totalMonthlyAmount,
+etaDays}. Amounts are integer microdollars; setupAmount/monthlyAmount are per
+sender and the totals cover the quantity. groupId is optional and staff-only.
+
+Submit on POST /registration (201) with region, type, subgroupId,
+clientRequestId (UUID), capabilities (one of the type's bundles) and data. Reuse
+a clientRequestId only to retry an identical submission; a reuse with different
+data is a 409. Worked example, UK Virtual Long Code: type "VIRTUAL_LONG_CODE",
+capabilities ["SMS"] or ["SMS","VOICE"], data {quantity (1-100), useCases (1-10
+strings), voice?}. The voice dossier is required exactly when capabilities
+include VOICE: companyName, companyPhone, companyWebsite, companyEmail,
+address {line1,line2?,city,postalCode,country}, companyDescription,
+campaignName, campaignDescription, optInMethods (WEB|KEYWORD|VERBAL),
+optOutKeywords (STOP and UNSUBSCRIBE), callTypes (LANDLINE|LOCAL|INTERNATIONAL),
+callsPerDay (1-5), callDurationMinutes (1-10, 15, 30, 45 or 60) and termsUrl.
+
+Worked example, UK alphanumeric sender ID: region "GB", type
+"ALPHANUMERIC_SENDER_ID", capabilities ["SMS"], data {requestedSenderId (3-11
+letters, digits, spaces, dots or dashes; at least one letter), trafficOrigin
+(LOCAL: headquartered in the UK | INTERNATIONAL), trafficType (TRANSACTIONAL |
+PROMOTIONAL), companyName, companyCountry, companyWebsite (http/https), industry,
+messageExample, senderRelationship? (required when requestedSenderId differs from
+companyName)}. quantity is always 1; the quote is one ["SMS"] bundle, 6000000
+setup and 6000000 monthly by default. Once the registration is APPROVED,
+data.phoneNumbers holds the granted sender (e.g. ["ACME"]); pass it as the sender
+to send SMS to UK recipients. The server appends "\nOpt out: sihou.io/o/{code}"
+to every message from it, counted in segments and in the estimate.
+
+GET /registration accepts groupId, subgroupId, region, type, kind, status,
+parentRegistrationId, phoneNumber (filter to registrations holding this phone
+number), sortBy (createdAt (default), subgroupId, registrationId, region or
+status), sortOrder (asc or desc (default)), page and limit (max 100) and returns
+{data,totalCount,page,limit}.
+Region and status each take one value or a list (string or array; an array is
+sent as repeated keys, e.g. status=PENDING_PROVIDER&status=APPROVED).
+GET /registration/:registrationId returns
+{registrationId, groupId, subgroupId, region, type, kind, channel, provider,
+externalId, parentRegistrationId, status, stage, capabilities, submittedAt,
+approvedAt, expiresAt, review:{decision,reviewedAt,reason}, data:{...type
+fields}, history:[{status,stage,actor,actorType,timestamp,reason}], createdAt,
+updatedAt}. For VIRTUAL_LONG_CODE, data also carries phoneNumbers, the numbers
+allocated so far. Statuses: DRAFT, SIGNAL_HOUSE_REVIEW, SIGNAL_HOUSE_APPROVED,
+SIGNAL_HOUSE_REJECTED, SUBMITTING, PENDING_PROVIDER, NEEDS_INFORMATION,
+PAYMENT_REQUIRED (the setup fee could not be funded; retried hourly), APPROVED,
+REJECTED, CANCELLED, PENDING_DELETE, DELETED, EXPIRED, RECONCILIATION_REQUIRED.
+`stage` is the provider's step inside a status. Never send from a sender whose
+registration is not APPROVED.
+
+DELETE /registration/:registrationId cancels a registration (roles api, admin,
+developer, user). Allowed from SIGNAL_HOUSE_REVIEW, SIGNAL_HOUSE_APPROVED,
+PENDING_PROVIDER, NEEDS_INFORMATION, PAYMENT_REQUIRED and APPROVED (409
+otherwise). Numbers already allocated stay on the account and stop sending.
+
+Staff only (the admin namespace exists only when the client enables admin, and
+enabling it grants no server permission):
+POST /:registrationId/review {action:"APPROVE"|"REJECT",reason?}; REJECT needs reason.
+POST /:registrationId/corrections {reason,data} saves the type's correctable
+fields (VIRTUAL_LONG_CODE: useCases, voice?) while the provider waits; owner,
+quantity, bundle and provider order are fixed.
+POST /:registrationId/numbers {phoneNumber} allocates a provider-owned number
+through the recovery path.
+POST /:registrationId/reconcile {externalId} links the provider order that was
+placed after an ambiguous submission; never place a second order to retry.
+GET /:registrationId/application?format=json returns {filename,contentType,base64};
+decode base64 before saving the document.
+
+Regional reporting: GET /message, /message/analytics, /message/analytics/detail,
+/message/analytics/by-subgroup, /message/analytics/by-error-code, /message/dnc and
+/message/dnc/analytics accept region and regionScopes; GET
+/message/analytics/filter-options accepts region only. region is US, GB or CA
+(any case of "UK"/"GB"/"GBR"/"United Kingdom" is accepted for GB) as a single value, a repeated parameter or a CSV.
+regionScopes is a JSON array of OR-ed branches {region, channels, brandId?,
+campaignId?, phoneNumber?} with channels from tenDLC, virtualLongCode, tollFree,
+shortCode and p2p; [] matches nothing and omitting both keeps the existing scope.
+Example:
+[{"region":"US","channels":["tenDLC"],"brandId":["BUS1"]},
+ {"region":"GB","channels":["virtualLongCode"],"phoneNumber":["447400123456"]}]
+GET /message always accepts them; the analytics and DNC reads accept them only
+where the environment serves hourly analytics and reject them with a 400 elsewhere.
+
+getAnalytics, getAnalyticsDetail, getAnalyticsThroughput and getDncAnalytics
+accept registrationId (a single id or an array, sent as repeated registrationId
+parameters like campaignId): filter to traffic attributed to these registrations
+(hourly analytics only; a 400 while hourly reads are off). Except on
+getAnalyticsThroughput, which has no phoneNumber filter, a phoneNumber filter
+takes precedence. getPhoneNumbers accepts a single registrationId to list the
+numbers provisioned under that registration.
+
+getAnalyticsBySubgroup, getAnalyticsByErrorCode and getDncRecords accept registrationId
+the same way, with the same hourly-only rule and precedence. getMessages accepts
+registrationId in every environment: it filters to messages attributed to those
+registrations, and a phoneNumber filter narrows further. Every method returns 400 when
+registrationId is combined with campaignId.
+
+getAnalyticsFilterOptions returns each phone number with its type (TOLL_FREE,
+SHORT_CODE, ALPHANUMERIC, VIRTUAL_LONG_NUMBER, and older local-number spellings) and
+country (ISO-2), null when unknown. TOLL_FREE, SHORT_CODE and ALPHANUMERIC are channels
+by type; a US number of any other type is 10DLC and a non-US one is a Virtual Long Code.
+
+UK sending is SMS only, from a +44 virtual long code to GB mobile recipients; MMS
+and group MMS are unavailable. POST /message/estimate accepts a +44 sender
+(recipients 10-15 digits) and returns region "GB", or "CA" for a Canadian sender.
+A READY alphanumeric sender ID (e.g. "ACME") also sends SMS to UK recipients only;
+its estimate includes the opt-out footer.
+
+LANGUAGE EXAMPLE
+  $catalog = $signalHouse->registrations->getCatalog('GB');
+  $quotes = $signalHouse->registrations->getQuotes(['region' => 'GB', 'type' => 'VIRTUAL_LONG_CODE', 'quantity' => 1]);
+  $signalHouse->registrations->createRegistration([
+      'region' => 'GB', 'type' => 'VIRTUAL_LONG_CODE', 'subgroupId' => 'SGEXAMPLE',
+      'clientRequestId' => $uuid, 'capabilities' => ['SMS'],
+      'data' => ['quantity' => 1, 'useCases' => ['Support']],
+  ]);
+  // UK alphanumeric sender ID
+  $signalHouse->registrations->getQuotes(['region' => 'GB', 'type' => 'ALPHANUMERIC_SENDER_ID']);
+  $signalHouse->registrations->createRegistration([
+      'region' => 'GB', 'type' => 'ALPHANUMERIC_SENDER_ID', 'subgroupId' => 'SGEXAMPLE',
+      'clientRequestId' => $uuid, 'capabilities' => ['SMS'],
+      'data' => ['requestedSenderId' => 'ACME', 'trafficOrigin' => 'LOCAL', 'trafficType' => 'TRANSACTIONAL',
+          'companyName' => 'Acme', 'companyCountry' => 'United Kingdom', 'companyWebsite' => 'https://acme.example',
+          'industry' => 'Retail', 'messageExample' => 'Your Acme order has shipped.'],
+  ]);
+  $signalHouse->registrations->getRegistration('REG2');   // poll until APPROVED; data.phoneNumbers is ['ACME']
+  $signalHouse->messages->sendSMS('ACME', ['447400123456'], 'Your Acme order has shipped.');
+  $signalHouse->registrations->getRegistrations(['region' => 'GB', 'status' => 'PENDING_PROVIDER']);
+  $signalHouse->registrations->getRegistration('REG1');
+  $signalHouse->registrations->cancelRegistration('REG1');
+  $signalHouse->registrations->admin->reviewRegistration('REG1', 'APPROVE');   // enableAdmin: true
+  $signalHouse->messages->getMessages(['region' => ['US', 'GB'],
+      'regionScopes' => [['region' => 'GB', 'channels' => ['virtualLongCode']]]]);
+  $signalHouse->messages->getAnalyticsFilterOptions(['groupId' => 'G1', 'region' => 'GB']);

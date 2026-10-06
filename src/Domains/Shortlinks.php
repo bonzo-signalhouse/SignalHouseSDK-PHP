@@ -32,6 +32,38 @@ class Shortlinks
     }
 
     /**
+     * Get the recipient opt-out details behind an alphanumeric-sender opt-out link (sihou.io/o/{code})
+     *
+     * @param string $code The opt-out code from the link
+     * @param array $options Additional request options
+     * @return array The response from the server; data is {code, senderName, maskedRecipient, optedOut}
+     */
+    public function getOptOut(string $code, array $options = []): array
+    {
+        $this->client->require(['code' => $code]);
+        $safeCode = rawurlencode($code);
+        return $this->client->request("/shortlink/optout/{$safeCode}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
+     * Confirm the recipient opt-out behind an alphanumeric-sender opt-out link; idempotent
+     *
+     * @param string $code The opt-out code from the link
+     * @param array $options Additional request options
+     * @return array The response from the server; data is {code, senderName, maskedRecipient, optedOut: true}
+     */
+    public function confirmOptOut(string $code, array $options = []): array
+    {
+        $this->client->require(['code' => $code]);
+        $safeCode = rawurlencode($code);
+        return $this->client->request("/shortlink/optout/{$safeCode}", array_merge([
+            'method' => 'POST',
+        ], $options));
+    }
+
+    /**
      * Get shortlink details with optional filters
      *
      * @param array $params Filter parameters (shortlinkId, messageId, phoneNumber, campaignId, brandId, subgroupId, groupId, page, limit)

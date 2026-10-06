@@ -12,6 +12,7 @@ use SignalHouse\SDK\Domains\Landings;
 use SignalHouse\SDK\Domains\Messages;
 use SignalHouse\SDK\Domains\Notifications;
 use SignalHouse\SDK\Domains\Numbers;
+use SignalHouse\SDK\Domains\Registrations;
 use SignalHouse\SDK\Domains\Onboarding;
 use SignalHouse\SDK\Domains\Shortlinks;
 use SignalHouse\SDK\Domains\Subgroups;
@@ -33,6 +34,7 @@ class SignalHouseSDK
     public Messages $messages;
     public Notifications $notifications;
     public Numbers $numbers;
+    public Registrations $registrations;
     public Onboarding $onboarding;
     public Shortlinks $shortlinks;
     public Subgroups $subgroups;
@@ -72,6 +74,7 @@ class SignalHouseSDK
         $this->messages = new Messages($client, $multipartClient, $enableAdmin);
         $this->notifications = new Notifications($client, $enableAdmin);
         $this->numbers = new Numbers($client, $multipartClient, $enableAdmin);
+        $this->registrations = new Registrations($client, $enableAdmin);
         $this->onboarding = new Onboarding($client, $enableAdmin);
         $this->shortlinks = new Shortlinks($client, $enableAdmin);
         $this->subgroups = new Subgroups($client, $enableAdmin);
