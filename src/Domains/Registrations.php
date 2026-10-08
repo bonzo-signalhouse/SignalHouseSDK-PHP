@@ -223,15 +223,15 @@ class Registrations
     /**
      * Submit a registration for Signal House review
      *
-     * @param array $registrationData ['region', 'type', 'subgroupId', 'clientRequestId' (UUID), 'capabilities' (one of
+     * @param array $registrationData ['region', 'type', 'subgroupId', 'capabilities' (one of
      *     the type's bundles), 'data']. type selects the data shape; for VIRTUAL_LONG_CODE it is ['quantity' (1-100),
      *     'useCases' (1-10), 'voice'?] with voice required exactly when capabilities include VOICE. For GB
      *     ALPHANUMERIC_SENDER_ID (capabilities ['SMS']) it is ['requestedSenderId' (3-11 letters/digits/space/dot/dash,
      *     at least one letter), 'trafficOrigin' (LOCAL | INTERNATIONAL), 'trafficType' (TRANSACTIONAL | PROMOTIONAL),
      *     'companyName', 'companyCountry', 'companyWebsite', 'industry', 'messageExample', 'senderRelationship'?]
      *     with senderRelationship required when requestedSenderId differs from companyName; quantity is always 1 and
-     *     data.phoneNumbers carries the granted sender (e.g. ['ACME']) once APPROVED. Reuse a
-     *     clientRequestId only to retry an identical submission (409 otherwise).
+     *     data.phoneNumbers carries the granted sender (e.g. ['ACME']) once APPROVED. Pass
+     *     $options['idempotencyKey'] to make a retry safe.
      * @param array $options Additional request options
      * @return array The response (HTTP 201) containing the new registration
      */

@@ -45,6 +45,32 @@ class Onboarding
                         'method' => 'GET',
                     ], $options));
                 }
+
+                /**
+                 * Add an internal comment/note to a group's admin Pricing editor. Staff-only.
+                 */
+                public function addPricingComment(string $groupId, string $comment, array $options = []): array
+                {
+                    $this->client->require(['groupId' => $groupId, 'comment' => $comment]);
+                    $safeGroupId = rawurlencode($groupId);
+                    return $this->client->request("/group/onboarding/{$safeGroupId}/pricing-comments", array_merge([
+                        'method' => 'POST',
+                        'body' => ['comment' => $comment],
+                    ], $options));
+                }
+
+                /**
+                 * Add an internal comment/note to a group's admin Credits page. Staff-only.
+                 */
+                public function addCreditComment(string $groupId, string $comment, array $options = []): array
+                {
+                    $this->client->require(['groupId' => $groupId, 'comment' => $comment]);
+                    $safeGroupId = rawurlencode($groupId);
+                    return $this->client->request("/group/onboarding/{$safeGroupId}/credit-comments", array_merge([
+                        'method' => 'POST',
+                        'body' => ['comment' => $comment],
+                    ], $options));
+                }
             };
         }
     }

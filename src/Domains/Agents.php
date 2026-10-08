@@ -467,6 +467,230 @@ class Agents
     }
 
     /**
+     * List the endpoint bindings (which agent answers which number) in a group, ordered by
+     * number. Each binding carries agentEndpointId, groupId, subgroupId, channel, endpointType,
+     * endpointValue, agentProfileId, answerMode, overrides, enabled, createdAt, and updatedAt.
+     *
+     * Allowed roles: api, admin, developer, billing, user.
+     *
+     * @param array $params Filter parameters. Requires 'groupId'; also accepts 'subgroupId',
+     *                       'agentProfileId' and 'channel' ("sms") to narrow the list.
+     * @param array $options Additional request options
+     * @return array The response from the server
+     */
+    public function getAgentEndpoints(array $params = [], array $options = []): array
+    {
+        $this->client->require(['groupId' => $params['groupId'] ?? null]);
+        $queryString = $this->client->getQueryString($params);
+        return $this->client->request("/agent/endpoints{$queryString}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
+     * Assign an agent to answer a number (upsert keyed by channel + number). Assigning again
+     * replaces the previous agent, so a number has one agent per channel. v1 binds SMS numbers only.
+     *
+     * Allowed roles: api, admin, developer.
+     *
+     * @param string $channel The channel to bind; must be "sms"
+     * @param string $endpointValue The phone number: 10 to 15 digits, country code included, no "+"
+     * @param array $endpointData agentProfileId (required; the agent must be active, in the number's
+     *                            group, and either belong to the number's subgroup or be a group-level
+     *                            agent with an enabled deployment there), answerMode ("all_inbound",
+     *                            the default).
+     * @param array $options Additional request options
+     * @return array The response from the server (the created or updated binding)
+     */
+    public function upsertAgentEndpoint(string $channel, string $endpointValue, array $endpointData, array $options = []): array
+    {
+        $this->client->require([
+            'channel' => $channel,
+            'endpointValue' => $endpointValue,
+            'agentProfileId' => $endpointData['agentProfileId'] ?? null,
+        ]);
+        $safeChannel = rawurlencode($channel);
+        $safeEndpointValue = rawurlencode($endpointValue);
+        return $this->client->request("/agent/endpoints/{$safeChannel}/{$safeEndpointValue}", array_merge([
+            'method' => 'PUT',
+            'body' => $endpointData,
+        ], $options));
+    }
+
+    /**
+     * Remove the agent assigned to a number.
+     *
+     * Allowed roles: api, admin, developer.
+     *
+     * @param string $channel The bound channel; must be "sms"
+     * @param string $endpointValue The phone number: digits only, country code included, no "+"
+     * @param array $options Additional request options
+     * @return array The response from the server (the removed binding)
+     */
+    public function deleteAgentEndpoint(string $channel, string $endpointValue, array $options = []): array
+    {
+        $this->client->require(['channel' => $channel, 'endpointValue' => $endpointValue]);
+        $safeChannel = rawurlencode($channel);
+        $safeEndpointValue = rawurlencode($endpointValue);
+        return $this->client->request("/agent/endpoints/{$safeChannel}/{$safeEndpointValue}", array_merge([
+            'method' => 'DELETE',
+        ], $options));
+    }
+
+    /**
+     * List held agent replies (the Pending Replies queue) in a group, newest first. Each draft
+     * carries agentReplyDraftId, groupId, subgroupId, agentProfileId, conversationId, channel,
+     * endpointValue, contactPhoneNumber, inboundText, draftText, sentText, reason, status,
+     * decidedBy, decidedAt, sentMessageId, deliveredBy ("signalhouse" or "external"; null until
+     * decided), failureReason ("delivery_unconfirmed" or null), claimId (the current claim's id;
+     * null until claimed), createdAt, and updatedAt.
+     *
+     * Allowed roles: api, admin, developer, billing, user.
+     *
+     * @param array $params Filter parameters. Requires 'groupId'; also accepts 'subgroupId',
+     *                       'agentProfileId', 'status' ("pending", "sending", "sent", "rejected"
+     *                       or "failed"), 'page' and 'limit' (default 25, max 500).
+     * @param array $options Additional request options
+     * @return array The response from the server
+     */
+    public function getAgentReplyDrafts(array $params = [], array $options = []): array
+    {
+        $this->client->require(['groupId' => $params['groupId'] ?? null]);
+        $queryString = $this->client->getQueryString($params);
+        return $this->client->request("/agent/drafts{$queryString}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
+     * Approve a held agent reply and send it from the agent's number, optionally with edited
+     * text. It goes through the normal SMS send path, so opt-out and billing apply; the draft
+     * comes back "failed" when the send path accepted nothing. A draft that is no longer
+     * pending returns 409.
+     *
+     * Allowed roles: api, admin, developer, billing, user.
+     *
+     * @param string $agentReplyDraftId The draft to approve
+     * @param string|null $text Replacement text when a person edited the reply (1 to 10000
+     *                          characters); null sends the agent's draft as written
+     * @param array $options Additional request options
+     * @return array The response from the server (the draft, now sent or failed)
+     */
+    public function approveAgentReplyDraft(string $agentReplyDraftId, ?string $text = null, array $options = []): array
+    {
+        $this->client->require(['agentReplyDraftId' => $agentReplyDraftId]);
+        $safeId = rawurlencode($agentReplyDraftId);
+        $request = ['method' => 'POST'];
+        // An empty PHP array JSON-encodes as [], which the API rejects; send no body instead.
+        if ($text !== null) {
+            $request['body'] = ['text' => $text];
+        }
+        return $this->client->request("/agent/drafts/{$safeId}/approve", array_merge($request, $options));
+    }
+
+    /**
+     * Reject a held agent reply so it is never sent. A draft that is no longer pending
+     * returns 409.
+     *
+     * Allowed roles: api, admin, developer, billing, user.
+     *
+     * @param string $agentReplyDraftId The draft to reject
+     * @param array $options Additional request options
+     * @return array The response from the server (the rejected draft)
+     */
+    public function rejectAgentReplyDraft(string $agentReplyDraftId, array $options = []): array
+    {
+        $this->client->require(['agentReplyDraftId' => $agentReplyDraftId]);
+        $safeId = rawurlencode($agentReplyDraftId);
+        return $this->client->request("/agent/drafts/{$safeId}/reject", array_merge([
+            'method' => 'POST',
+        ], $options));
+    }
+
+    /**
+     * Claim a held agent reply for delivery through your own channel instead of Signal House's
+     * send path. Nothing is sent: the draft becomes "sending" with deliveredBy "external",
+     * sentText and a new claimId set, and you then report the outcome with
+     * completeAgentReplyDraft or releaseAgentReplyDraft, passing that claimId back. The claim means two approvals can never both deliver. A draft that
+     * is no longer pending returns 409; one whose number has left its subgroup returns 400 and is
+     * closed as failed.
+     *
+     * Allowed roles: api, admin, developer, billing, user.
+     *
+     * @param string $agentReplyDraftId The draft to claim
+     * @param string|null $text Replacement text when a person edited the reply (1 to 10000
+     *                          characters); null claims the agent's draft as written
+     * @param array $options Additional request options
+     * @return array The response from the server (the claimed draft, including its claimId)
+     */
+    public function claimAgentReplyDraft(string $agentReplyDraftId, ?string $text = null, array $options = []): array
+    {
+        $this->client->require(['agentReplyDraftId' => $agentReplyDraftId]);
+        $safeId = rawurlencode($agentReplyDraftId);
+        $request = ['method' => 'POST'];
+        // An empty PHP array JSON-encodes as [], which the API rejects; send no body instead.
+        if ($text !== null) {
+            $request['body'] = ['text' => $text];
+        }
+        return $this->client->request("/agent/drafts/{$safeId}/claim", array_merge($request, $options));
+    }
+
+    /**
+     * Mark a claimed agent reply sent once your channel accepted it. Only the claim named by
+     * $claimId can be completed; anything else returns 409. It is also accepted after an
+     * unfinished claim was closed as "failed" with failureReason "delivery_unconfirmed", which it
+     * turns into "sent".
+     *
+     * Allowed roles: api, admin, developer, billing, user.
+     *
+     * @param string $agentReplyDraftId The claimed draft
+     * @param string $claimId The claim being completed, as returned by claimAgentReplyDraft
+     * @param string|null $externalMessageId Your channel's id for the sent message (up to 256
+     *                                       characters), stored as sentMessageId; null omits it
+     * @param array $options Additional request options
+     * @return array The response from the server (the draft, now sent)
+     */
+    public function completeAgentReplyDraft(string $agentReplyDraftId, string $claimId, ?string $externalMessageId = null, array $options = []): array
+    {
+        $this->client->require(['agentReplyDraftId' => $agentReplyDraftId, 'claimId' => $claimId]);
+        $safeId = rawurlencode($agentReplyDraftId);
+        $body = ['claimId' => $claimId];
+        if ($externalMessageId !== null) {
+            $body['externalMessageId'] = $externalMessageId;
+        }
+        $request = ['method' => 'POST', 'body' => $body];
+        return $this->client->request("/agent/drafts/{$safeId}/complete", array_merge($request, $options));
+    }
+
+    /**
+     * Give back a claim whose reply certainly did not go out: the draft returns to "pending", or
+     * with $permanent is closed as "failed". If you cannot tell whether it went out, do not
+     * release it; a claim left unfinished for 30 minutes is closed as failed with failureReason
+     * "delivery_unconfirmed". Only the claim named by $claimId can be released; anything else
+     * returns 409.
+     *
+     * Allowed roles: api, admin, developer, billing, user.
+     *
+     * @param string $agentReplyDraftId The claimed draft
+     * @param string $claimId The claim being released, as returned by claimAgentReplyDraft
+     * @param bool|null $permanent True closes the draft as failed instead of returning it to
+     *                             pending; null omits it
+     * @param array $options Additional request options
+     * @return array The response from the server (the draft, pending again or failed)
+     */
+    public function releaseAgentReplyDraft(string $agentReplyDraftId, string $claimId, ?bool $permanent = null, array $options = []): array
+    {
+        $this->client->require(['agentReplyDraftId' => $agentReplyDraftId, 'claimId' => $claimId]);
+        $safeId = rawurlencode($agentReplyDraftId);
+        $body = ['claimId' => $claimId];
+        if ($permanent !== null) {
+            $body['permanent'] = $permanent;
+        }
+        $request = ['method' => 'POST', 'body' => $body];
+        return $this->client->request("/agent/drafts/{$safeId}/release", array_merge($request, $options));
+    }
+
+    /**
      * Publish an agent profile, setting publishStatus to "published" and stamping publishedAt.
      * The server rejects the call with 400 when the agent has no enabled deployment, and with
      * 409 when the agent is inactive.

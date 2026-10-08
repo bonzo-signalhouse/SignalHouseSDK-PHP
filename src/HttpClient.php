@@ -33,7 +33,7 @@ class HttpClient
      * Make an API request
      *
      * @param string $url The endpoint URL
-     * @param array $options Request options (method, body, token, headers, multipart)
+     * @param array $options Request options (method, body, token, headers, multipart, idempotencyKey)
      * @return array Standardized response array
      */
     public function request(string $url, array $options = []): array
@@ -49,6 +49,11 @@ class HttpClient
         // Additional headers
         if (isset($options['headers'])) {
             $requestOptions['headers'] = array_merge($requestOptions['headers'] ?? [], $options['headers']);
+        }
+
+        // Idempotency key: a retry with the same key and request replays the first response
+        if (isset($options['idempotencyKey'])) {
+            $requestOptions['headers']['Idempotency-Key'] = $options['idempotencyKey'];
         }
 
         // Request body

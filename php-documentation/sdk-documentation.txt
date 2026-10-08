@@ -58,6 +58,29 @@ CUSTOM HEADERS
     );
 
 
+IDEMPOTENT REQUESTS
+--------------------------------------------------------------------------------
+  Pass options['idempotencyKey'] to make a create, update or delete safe to
+  retry. The SDK sends it as the Idempotency-Key header. A retry with the same
+  key and the same request replays the first response, marked with the
+  response header Idempotent-Replayed: true, instead of running the request
+  again.
+
+  - Use a new key (a UUID is recommended) for each new operation, and reuse
+    it only to retry that exact request.
+  - Keys are scoped to the authenticated user and kept for 24 hours.
+  - Reusing a key for a different request returns 422; retrying while the
+    first request is still running returns 409 with Retry-After.
+  - The SDK never creates a key for you. GET requests ignore it, and the
+    Voice service does not support it.
+
+  Example:
+    $response = $signalHouse->subgroups->createSubgroup(
+        ['groupId' => 'G0000001', 'subgroupName' => 'Support'],
+        ['idempotencyKey' => '6f1c2a4e-8b3d-4c5e-9f70-1a2b3c4d5e6f']
+    );
+
+
 ================================================================================
                           DOMAIN METHOD REFERENCE
 ================================================================================
@@ -640,9 +663,8 @@ etaDays}. Amounts are integer microdollars; setupAmount/monthlyAmount are per
 sender and the totals cover the quantity. groupId is optional and staff-only.
 
 Submit on POST /registration (201) with region, type, subgroupId,
-clientRequestId (UUID), capabilities (one of the type's bundles) and data. Reuse
-a clientRequestId only to retry an identical submission; a reuse with different
-data is a 409. Worked example, UK Virtual Long Code: type "VIRTUAL_LONG_CODE",
+capabilities (one of the type's bundles) and data. Set options['idempotencyKey'] to make a
+retry safe (see IDEMPOTENT REQUESTS). Worked example, UK Virtual Long Code: type "VIRTUAL_LONG_CODE",
 capabilities ["SMS"] or ["SMS","VOICE"], data {quantity (1-100), useCases (1-10
 strings), voice?}. The voice dossier is required exactly when capabilities
 include VOICE: companyName, companyPhone, companyWebsite, companyEmail,
@@ -745,14 +767,14 @@ LANGUAGE EXAMPLE
   $quotes = $signalHouse->registrations->getQuotes(['region' => 'GB', 'type' => 'VIRTUAL_LONG_CODE', 'quantity' => 1]);
   $signalHouse->registrations->createRegistration([
       'region' => 'GB', 'type' => 'VIRTUAL_LONG_CODE', 'subgroupId' => 'SGEXAMPLE',
-      'clientRequestId' => $uuid, 'capabilities' => ['SMS'],
+      'capabilities' => ['SMS'],
       'data' => ['quantity' => 1, 'useCases' => ['Support']],
   ]);
   // UK alphanumeric sender ID
   $signalHouse->registrations->getQuotes(['region' => 'GB', 'type' => 'ALPHANUMERIC_SENDER_ID']);
   $signalHouse->registrations->createRegistration([
       'region' => 'GB', 'type' => 'ALPHANUMERIC_SENDER_ID', 'subgroupId' => 'SGEXAMPLE',
-      'clientRequestId' => $uuid, 'capabilities' => ['SMS'],
+      'capabilities' => ['SMS'],
       'data' => ['requestedSenderId' => 'ACME', 'trafficOrigin' => 'LOCAL', 'trafficType' => 'TRANSACTIONAL',
           'companyName' => 'Acme', 'companyCountry' => 'United Kingdom', 'companyWebsite' => 'https://acme.example',
           'industry' => 'Retail', 'messageExample' => 'Your Acme order has shipped.'],
