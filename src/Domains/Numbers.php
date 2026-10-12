@@ -278,9 +278,10 @@ class Numbers
      * @param int|null $page Page number for pagination (default: 1)
      * @param int|null $limit Items per page (default: 20)
      * @param array $options Additional request options
+     * @param bool|null $excludeDocuments When true, leave signatureUrl and billingUrl out of each request (the inline LOA signature and billing statement). Last so existing positional callers are unaffected.
      * @return array Paginated port-in requests
      */
-    public function getPortRequests(?string $groupId = null, ?string $phoneNumber = null, ?string $status = null, ?int $page = null, ?int $limit = null, array $options = []): array
+    public function getPortRequests(?string $groupId = null, ?string $phoneNumber = null, ?string $status = null, ?int $page = null, ?int $limit = null, array $options = [], ?bool $excludeDocuments = null): array
     {
         $queryString = $this->client->getQueryString([
             'groupId' => $groupId,
@@ -288,6 +289,7 @@ class Numbers
             'status' => $status,
             'page' => $page,
             'limit' => $limit,
+            'excludeDocuments' => $excludeDocuments,
         ]);
         return $this->client->request("/number/portin{$queryString}", array_merge([
             'method' => 'GET',
@@ -331,7 +333,8 @@ class Numbers
             $params['status'] ?? null,
             $params['page'] ?? null,
             $params['limit'] ?? null,
-            $options
+            $options,
+            $params['excludeDocuments'] ?? null
         );
     }
 

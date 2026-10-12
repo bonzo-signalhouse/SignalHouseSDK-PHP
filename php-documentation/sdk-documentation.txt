@@ -350,9 +350,10 @@ NUMBERS  ($signalHouse->numbers)
     $numberData: array containing port-in request data (required).
 
   getPortRequests(?string $groupId, ?string $phoneNumber, ?string $status,
-      ?int $page, ?int $limit, array $options = [])
+      ?int $page, ?int $limit, array $options = [], ?bool $excludeDocuments = null)
     Get port-in requests with optional filters (GET /number/portin).
-    All parameters are optional.
+    All parameters are optional. $excludeDocuments = true leaves signatureUrl
+    and billingUrl out of each request.
 
 
 SHORTLINKS  ($signalHouse->shortlinks)
@@ -755,6 +756,7 @@ getAnalyticsFilterOptions returns each phone number with its type (TOLL_FREE,
 SHORT_CODE, ALPHANUMERIC, VIRTUAL_LONG_NUMBER, and older local-number spellings) and
 country (ISO-2), null when unknown. TOLL_FREE, SHORT_CODE and ALPHANUMERIC are channels
 by type; a US number of any other type is 10DLC and a non-US one is a Virtual Long Code.
+It also returns carriers, a plain array of carrier name strings.
 
 UK sending is SMS only, from a +44 virtual long code to GB mobile recipients; MMS
 and group MMS are unavailable. POST /message/estimate accepts a +44 sender

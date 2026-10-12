@@ -154,7 +154,7 @@ class Messages
      *     hour grain is wanted.
      *     breakdown ("carrier" | "carrierFamily") adds a byBreakdown time × dimension series to the
      *     response ({dimension, rows}: each row is one byDate bucket (_id) for one carrier or carrier
-     *     family (key), top 50 keys by volume, 10DLC only) and caps the span at 31 days. Only accepted where the environment serves hourly analytics; elsewhere any value is rejected with a 400 -- omit the parameter unless it is wanted.
+     *     family (key), top 50 keys by volume, excluding P2P) and caps the span at 31 days. Only accepted where the environment serves hourly analytics; elsewhere any value is rejected with a 400 -- omit the parameter unless it is wanted.
      *     dateBounds is which contract binds startDate/endDate. "day": each bound is widened to its
      *     whole UTC day. "exact": a timestamp is bound as the instant it
      *     names and a bare date is its whole UTC day. Omitted: "day".
@@ -223,10 +223,11 @@ class Messages
      *     or "CA" (any case of "UK"/"GB"/"GBR"/"United Kingdom" is accepted for GB) as a single value or array; only accepted where the environment
      *     serves hourly analytics, elsewhere any value is rejected with a 400.
      * @param array $options Additional request options
-     * @return array The response with subgroups, brands, campaigns, and phoneNumbers arrays. Each phone
+     * @return array The response with subgroups, brands, campaigns, phoneNumbers, and carriers arrays. Each phone
      *     number carries type (TOLL_FREE, SHORT_CODE, ALPHANUMERIC, VIRTUAL_LONG_NUMBER, ...) and country
      *     (ISO-2), null when unknown: TOLL_FREE, SHORT_CODE and ALPHANUMERIC are channels by type; any other
-     *     US number is 10DLC and a non-US one is a Virtual Long Code.
+     *     US number is 10DLC and a non-US one is a Virtual Long Code. carriers is a plain array of carrier
+     *     name strings.
      */
     public function getAnalyticsFilterOptions(array $params = [], array $options = []): array
     {
