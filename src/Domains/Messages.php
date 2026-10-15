@@ -294,6 +294,10 @@ class Messages
      *     'phoneNumber'?] (channels: tenDLC, virtualLongCode, tollFree, shortCode, p2p), JSON-encoded for
      *     the query; a string is sent as-is and [] matches nothing. Both are accepted only where the
      *     environment serves hourly analytics; elsewhere any value is rejected with a 400.
+     *     errorCode narrows the breakdown to a single failure reason: a numeric Infobip carrier code
+     *     (as a string, e.g. "607"), the Signal House campaign-opt-out code "OUT", or a no-code failure
+     *     class (other, moderation, att_limit, p2p_stop, campaign_opt_out, dnc_blocked, bind_hold_expired).
+     *     Omitted: every reason.
      * @param array $options Additional request options
      * @return array { rows, totalCount, totalErrors: { sms, mms, p2p, all }, page, limit }
      */

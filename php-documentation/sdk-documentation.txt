@@ -424,10 +424,12 @@ USERS  ($signalHouse->users)
   createServiceUser(array $data, ?array $options)
     Create a service user (API key). Optional allowedIps (IPs/CIDRs) and
     allowedCountries (ISO 3166-1 alpha-2) restrict where a customer key is accepted from.
+    allowedDestinationCountries (ISO 3166-1 alpha-2) limits the countries it can send
+    messages to; a send to any other country is rejected with 403 DESTINATION_COUNTRY_NOT_ALLOWED.
 
   updateUser(string $id, array $data, ?array $options)
-    Update user information. For a customer API key, allowedIps / allowedCountries
-    replace its restrictions ([] removes one); needs an interactive admin/developer session.
+    Update user information. For a customer API key, allowedIps / allowedCountries /
+    allowedDestinationCountries replace its restrictions ([] removes one); needs an interactive admin/developer session.
 
   deleteUser(string $id, ?array $options)
     Delete (deactivate) a user.

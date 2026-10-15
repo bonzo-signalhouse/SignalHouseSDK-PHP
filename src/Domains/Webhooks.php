@@ -36,6 +36,10 @@ class Webhooks
      * used to sign every delivery to this endpoint via the X-SignalHouse-Signature header. It is
      * returned exactly once, here — store it now, it is never exposed again by any read.
      *
+     * `authType` in $webhookData is one of `NONE` (default), `BASIC`, `API_KEY`, `OAUTH2` or `HMAC`.
+     * `HMAC` sends no credentials (the receiver authenticates by the signature alone) and must be sent
+     * without `credentials` or `apiHeaderPrefix`.
+     *
      * @param array $webhookData The webhook data
      * @param array $options Additional request options
      * @return array The response from the server, including the plaintext `signingSecret` (this one time only)
@@ -52,6 +56,9 @@ class Webhooks
     /**
      * Update an existing webhook. Like every other read of a webhook, the response carries
      * `hasSigningSecret` (bool), never the signing secret itself — see createWebhook.
+     *
+     * Switching `authType` to `NONE` or `HMAC` clears the stored credentials. `HMAC` is rejected for an
+     * endpoint with no signing secret; call rotateWebhookSecret first.
      *
      * @param string $id The webhook ID
      * @param array $updateData The data to update

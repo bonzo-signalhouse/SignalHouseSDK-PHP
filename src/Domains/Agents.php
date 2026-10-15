@@ -121,7 +121,9 @@ class Agents
     }
 
     /**
-     * Delete (inactivate) an agent profile by its id.
+     * Permanently delete an agent profile by its id.
+     *
+     * Permanently deletes the agent, its channel settings, and any tools and knowledge scoped to it, plus their provider-side counterparts. Tools and knowledge shared across the account are untouched. Conversation records survive — a transcript outlives the agent that produced it.
      *
      * Allowed roles: api, admin, developer.
      *
@@ -366,7 +368,12 @@ class Agents
      *                           maxCallDurationSeconds (60-7200),
      *                           allowGreetingInterruption (bool), keyterms (string[] the
      *                           transcriber is biased toward), backgroundSound
-     *                           (['preset' => string, 'volume' => 0.01-1]|null).
+     *                           (['preset' => string, 'volume' => 0.01-1]|null), workflow (the
+     *                           conversation workflow graph: 'nodes' and 'edges' keyed arrays, plus
+     *                           optional 'subgraphs' and 'prevent_subagent_loops'; node bodies are
+     *                           defined by the voice runtime and passed through as-is). workflow is
+     *                           accepted on the voice channel only — sending one on webchat or sms
+     *                           is a 400; null clears it.
      * @param array $options Additional request options
      * @return array The response from the server
      */
