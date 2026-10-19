@@ -217,7 +217,10 @@ class Campaigns
     /**
      * Create a new campaign
      *
-     * @param array $campaignData The campaign data (see JS SDK CreateCampaignData for fields)
+     * @param array $campaignData The campaign data (see JS SDK CreateCampaignData for fields). Optional
+     *                            'sampleMediaIds' (10DLC only): up to 5 mediaId strings from
+     *                            uploadSampleMedia(), attached to the TCR campaign as sample MMS media
+     *                            for carrier review.
      * @param array $options Additional request options
      * @return array The response from the server
      */
@@ -365,6 +368,53 @@ class Campaigns
     }
 
     /**
+     * Upload a sample media file (JPEG, PNG, GIF, MP4 or MP3, up to 5MB) for a 10DLC campaign.
+     * Reference the returned mediaId in sampleMediaIds on campaign create or update; it is
+     * attached to the TCR campaign for carrier review.
+     *
+     * @param string|resource $file The media file path or file resource
+     * @param array $options Additional request options
+     * @param string|null $groupId The group the file belongs to. Required with a staff (signalhouse_*)
+     *     key, which has no active group; otherwise optional and must be your own group
+     * @return array The response from the server containing the uploaded file's mediaId, fileName,
+     *     mimeType and size
+     */
+    public function uploadSampleMedia(mixed $file, array $options = [], ?string $groupId = null): array
+    {
+        $this->client->require(['file' => $file]);
+
+        $multipart = [];
+        if ($groupId !== null && $groupId !== '') {
+            $multipart[] = ['name' => 'groupId', 'contents' => $groupId];
+        }
+        $multipart[] = [
+            'name' => 'file',
+            'contents' => is_string($file) ? fopen($file, 'r') : $file,
+        ];
+
+        return $this->multipartClient->request('/campaign/sample-media', array_merge([
+            'method' => 'POST',
+            'multipart' => $multipart,
+        ], $options));
+    }
+
+    /**
+     * Download a campaign sample media file your group owns.
+     *
+     * @param string $mediaId The mediaId returned by uploadSampleMedia()
+     * @param array $options Additional request options
+     * @return array The response from the server containing the raw file bytes
+     */
+    public function readSampleMedia(string $mediaId, array $options = []): array
+    {
+        $this->client->require(['mediaId' => $mediaId]);
+        $safeMediaId = rawurlencode($mediaId);
+        return $this->client->request("/campaign/sample-media/{$safeMediaId}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
      * Auto-capture an opt-in proof image from a brand's generated landing page and host it
      * on-platform, returning the hosted image's id and URL suitable for a Toll-Free campaign's
      * optInImageURLs.
@@ -395,7 +445,10 @@ class Campaigns
      *                            Toll-Free fields under a 'tollFree' sub-array (useCase,
      *                            messageVolume, programSummary, exampleMessage, customerCareEmail,
      *                            optInImageURLs, optIns, multiNumberReason, useCases, channels, landingId); phoneNumbers cannot be
-     *                            changed — Toll-Free numbers are locked to their campaign.
+     *                            changed — Toll-Free numbers are locked to their campaign. For a
+     *                            10DLC campaign, an optional 'sampleMediaIds' list (up to 5 mediaId
+     *                            strings from uploadSampleMedia()) sets the sample MMS media for
+     *                            carrier review.
      * @param array $options Additional request options
      * @return array The response from the server
      */

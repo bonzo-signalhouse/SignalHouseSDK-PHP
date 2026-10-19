@@ -56,13 +56,12 @@ class HttpClient
             $requestOptions['headers']['Idempotency-Key'] = $options['idempotencyKey'];
         }
 
-        // Request body
-        if (isset($options['body'])) {
-            if ($options['body'] instanceof \GuzzleHttp\Psr7\MultipartStream || isset($options['multipart'])) {
-                $requestOptions['multipart'] = $options['multipart'];
-            } else {
-                $requestOptions['json'] = $options['body'];
-            }
+        // Request body. Multipart callers pass `multipart` without a `body`, so it must be
+        // checked on its own; nesting it under `body` sent every multipart call empty (SHGHL-3790).
+        if (isset($options['multipart'])) {
+            $requestOptions['multipart'] = $options['multipart'];
+        } elseif (isset($options['body'])) {
+            $requestOptions['json'] = $options['body'];
         }
 
         try {
