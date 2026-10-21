@@ -6,6 +6,7 @@ use SignalHouse\SDK\HttpClient;
 use SignalHouse\SDK\Domains\Voice\SipTrunks;
 use SignalHouse\SDK\Domains\Voice\SipProfiles;
 use SignalHouse\SDK\Domains\Voice\ProgrammableVoiceProfiles;
+use SignalHouse\SDK\Domains\Voice\NumberRoutes;
 use SignalHouse\SDK\Domains\Voice\Calls;
 use SignalHouse\SDK\Domains\Voice\CallLogs;
 use SignalHouse\SDK\Domains\Voice\Analytics;
@@ -19,6 +20,7 @@ use SignalHouse\SDK\Domains\Voice\Tokens;
  *  - $sdk->voice->sipTrunks                 — SIP trunk (peer-to-peer connections to PBX/carrier)
  *  - $sdk->voice->sipProfiles               — SIP profile / endpoint (single registerable UA)
  *  - $sdk->voice->programmableVoiceProfiles — Programmable Voice Profile (route a set of numbers through Signal House)
+ *  - $sdk->voice->numberRoutes              — Per-number inbound route (overrides the profile and subgroup settings)
  *  - $sdk->voice->calls                     — Outbound call origination + call log queries
  *  - $sdk->voice->callLogs                  — Account-scoped call history: list/get + presigned recording
  *  - $sdk->voice->analytics                 — Aggregated call metrics (summary tiles + byDate/byNumber/byCarrier breakdowns)
@@ -30,6 +32,7 @@ class Voice
     public SipTrunks $sipTrunks;
     public SipProfiles $sipProfiles;
     public ProgrammableVoiceProfiles $programmableVoiceProfiles;
+    public NumberRoutes $numberRoutes;
     public Calls $calls;
     public CallLogs $callLogs;
     public Analytics $analytics;
@@ -41,6 +44,7 @@ class Voice
         $this->sipTrunks = new SipTrunks($client, $enableAdmin);
         $this->sipProfiles = new SipProfiles($client, $enableAdmin);
         $this->programmableVoiceProfiles = new ProgrammableVoiceProfiles($client, $enableAdmin);
+        $this->numberRoutes = new NumberRoutes($client, $enableAdmin);
         $this->calls = new Calls($client, $enableAdmin);
         $this->callLogs = new CallLogs($client, $enableAdmin);
         $this->analytics = new Analytics($client, $enableAdmin);
