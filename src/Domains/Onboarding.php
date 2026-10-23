@@ -47,6 +47,26 @@ class Onboarding
                 }
 
                 /**
+                 * Set where a group's new toll-free brands and numbers go (`infobip` or `twilio`). Staff-only.
+                 * Existing brands, numbers and campaigns stay where they are.
+                 *
+                 * @param string $groupId The group ID whose toll-free provider to set
+                 * @param string $tollFreeProvider The toll-free provider: 'infobip' or 'twilio'
+                 * @param array $options Additional request options
+                 * @return array The response from the server (the updated onboarding record)
+                 * @throws \SignalHouse\SDK\Exceptions\ValidationException If groupId or tollFreeProvider is missing
+                 */
+                public function setTollFreeProvider(string $groupId, string $tollFreeProvider, array $options = []): array
+                {
+                    $this->client->require(['groupId' => $groupId, 'tollFreeProvider' => $tollFreeProvider]);
+                    $safeGroupId = rawurlencode($groupId);
+                    return $this->client->request("/group/onboarding/{$safeGroupId}/toll-free-provider", array_merge([
+                        'method' => 'PUT',
+                        'body' => ['tollFreeProvider' => $tollFreeProvider],
+                    ], $options));
+                }
+
+                /**
                  * Add an internal comment/note to a group's admin Pricing editor. Staff-only.
                  */
                 public function addPricingComment(string $groupId, string $comment, array $options = []): array

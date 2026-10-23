@@ -49,6 +49,10 @@ $result = $sdk->messages->sendSMS(
 // Get brands
 $brands = $sdk->brands->getBrands(['groupId' => 'G12345678']);
 
+// Get a group's business verification; when required is true and status is NOT_STARTED,
+// submit it with submitBusinessVerification before creating the group's first toll-free brand
+$verification = $sdk->brands->getBusinessVerification('G12345678');
+
 // Check wallet balance
 $wallet = $sdk->billing->getWallet('G12345678');
 ```
@@ -59,7 +63,7 @@ $wallet = $sdk->billing->getWallet('G12345678');
 |--------|-------------|
 | `$sdk->auth` | Authentication and login history |
 | `$sdk->billing` | Wallet, payment methods, transactions, invoices, fees |
-| `$sdk->brands` | 10DLC brand registration and management |
+| `$sdk->brands` | 10DLC brand registration and management, toll-free business verification |
 | `$sdk->campaigns` | 10DLC campaign management |
 | `$sdk->groups` | Group management |
 | `$sdk->landings` | Landing page management (with file uploads) |

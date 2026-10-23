@@ -40,6 +40,11 @@ class Webhooks
      * `HMAC` sends no credentials (the receiver authenticates by the signature alone) and must be sent
      * without `credentials` or `apiHeaderPrefix`.
      *
+     * `eventSettings` in $webhookData holds per-event options keyed by event name:
+     * `NUMBER_HEALTH_BELOW_THRESHOLD` and `CAMPAIGN_HEALTH_BELOW_THRESHOLD` each take `['threshold' => n]`,
+     * the 7-day health score (1.5–10, in 0.5 steps) below which the event fires. A subscribed health event
+     * without a threshold is stored with the default, 6.
+     *
      * @param array $webhookData The webhook data
      * @param array $options Additional request options
      * @return array The response from the server, including the plaintext `signingSecret` (this one time only)
@@ -59,6 +64,10 @@ class Webhooks
      *
      * Switching `authType` to `NONE` or `HMAC` clears the stored credentials. `HMAC` is rejected for an
      * endpoint with no signing secret; call rotateWebhookSecret first.
+     *
+     * `eventSettings` in $updateData changes per-event options by event name (`NUMBER_HEALTH_BELOW_THRESHOLD`,
+     * `CAMPAIGN_HEALTH_BELOW_THRESHOLD`, each `['threshold' => n]`, 1.5–10 in 0.5 steps); events you omit keep
+     * their stored settings.
      *
      * @param string $id The webhook ID
      * @param array $updateData The data to update

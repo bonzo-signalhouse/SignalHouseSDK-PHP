@@ -78,8 +78,10 @@ class Numbers
     /**
      * Get a list of phone numbers with optional filters
      *
-     * @param array $params Filter parameters (phoneNumber, campaignId, registrationId, brandId, subgroupId, groupId, page, limit).
+     * @param array $params Filter parameters (phoneNumber, campaignId, registrationId, brandId, subgroupId, groupId, page, limit, currentTollFreeCarrier).
      *     registrationId filters to numbers provisioned under this registration.
+     *     currentTollFreeCarrier (bool), with groupId or subgroupId: when true, return only the toll-free numbers a new
+     *     toll-free campaign in that group can use.
      * @param array $options Additional request options
      * @return array The response from the server
      *
@@ -253,6 +255,70 @@ class Numbers
     }
 
     /**
+     * Get a phone number's outbound caller name (CNAM) - the name US carriers show for calls from it
+     *
+     * Roles: api, admin, developer, billing, user
+     *
+     * @param string $phoneNumber The phone number (E.164, leading + optional)
+     * @param array $options Additional request options
+     * @return array Response resolving to { phoneNumber, cnam, autoApply, eligible, ineligibleReason }
+     */
+    public function getCallerName(string $phoneNumber, array $options = []): array
+    {
+        $this->client->require(['phoneNumber' => $phoneNumber]);
+        $safePhoneNumber = rawurlencode($phoneNumber);
+        return $this->client->request("/number/{$safePhoneNumber}/cnam", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
+     * Set a phone number's outbound caller name (CNAM). The name may only remove characters from the
+     * registered name of the number's brand (its campaign's brand, else $brandId, else the subgroup's
+     * default caller-ID brand), and must be 1-15 letters, digits, spaces, - or _.
+     *
+     * Roles: api, admin, developer
+     *
+     * @param string $phoneNumber The phone number (E.164, leading + optional)
+     * @param string $name The caller name to show
+     * @param string|null $brandId The verified brand the name comes from; only for numbers with no campaign (sent only when provided)
+     * @param array $options Additional request options
+     * @return array Response resolving to { phoneNumber, cnam, autoApply, eligible, ineligibleReason }
+     */
+    public function setCallerName(string $phoneNumber, string $name, ?string $brandId = null, array $options = []): array
+    {
+        $this->client->require(['phoneNumber' => $phoneNumber, 'name' => $name]);
+        $safePhoneNumber = rawurlencode($phoneNumber);
+        $body = ['name' => $name];
+        if ($brandId !== null && $brandId !== '') {
+            $body['brandId'] = $brandId;
+        }
+        return $this->client->request("/number/{$safePhoneNumber}/cnam", array_merge([
+            'method' => 'PUT',
+            'body' => $body,
+        ], $options));
+    }
+
+    /**
+     * Remove a phone number's own caller name (CNAM). If its subgroup has caller name auto-apply on,
+     * the number goes back to the automatic name.
+     *
+     * Roles: api, admin, developer
+     *
+     * @param string $phoneNumber The phone number (E.164, leading + optional)
+     * @param array $options Additional request options
+     * @return array Response resolving to { phoneNumber, cnam, autoApply, eligible, ineligibleReason }
+     */
+    public function deleteCallerName(string $phoneNumber, array $options = []): array
+    {
+        $this->client->require(['phoneNumber' => $phoneNumber]);
+        $safePhoneNumber = rawurlencode($phoneNumber);
+        return $this->client->request("/number/{$safePhoneNumber}/cnam", array_merge([
+            'method' => 'DELETE',
+        ], $options));
+    }
+
+    /**
      * Submit a port-in request for one or more phone numbers from another provider
      *
      * @param array $numberData The port-in request data including owner info, address, phone numbers, and signature
@@ -342,7 +408,9 @@ class Numbers
      * Assign phone numbers to a campaign. Numbers that are not found, already RELEASED, already assigned
      * to a different campaign, on a mismatched DCA, or (for a 10DLC campaign without a number pool) beyond
      * the remaining 49-number-per-campaign limit are not queued - each is reported back individually in
-     * skipped instead of failing the whole request.
+     * skipped instead of failing the whole request. A Toll-Free campaign whose brand reports
+     * tollFree.maxNumbersPerCampaign as 1 holds one number: a request that would give it a second is
+     * refused with a 400 and nothing is queued.
      *
      * @param string $campaignId The campaign ID
      * @param array $phoneNumbers The phone numbers to assign

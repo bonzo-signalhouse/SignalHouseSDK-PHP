@@ -26,8 +26,10 @@ class Brands
     /**
      * Get a list of brands with optional filters
      *
-     * @param array $params Filter parameters (id, subgroupId, groupId, page, limit, status, registrationType).
+     * @param array $params Filter parameters (id, subgroupId, groupId, page, limit, status, registrationType, currentTollFreeCarrier).
     *                      id is a brand lookup id. registrationType filters by "TEN_DLC", "TOLL_FREE", or "SHORT_CODE".
+     *                      currentTollFreeCarrier (bool), with groupId or subgroupId: when true, return only the
+     *                      toll-free brands a new toll-free campaign in that group can use.
      *                      Responses may include brandId: null for pending brands.
      * @param array $options Additional request options
      * @return array The response from the server
@@ -92,6 +94,56 @@ class Brands
         return $this->client->request('/brand/toll-free', array_merge([
             'method' => 'POST',
             'body' => $brandData,
+        ], $options));
+    }
+
+    /**
+     * Get a group's business verification: whether its toll-free brands need one, its status and the
+     * submitted details.
+     *
+     * The response data holds groupId, required (whether the group's new toll-free brands need one),
+     * status (NOT_STARTED, SUBMITTING, IN_REVIEW, VERIFIED or NEEDS_CHANGES), details, submittedAt,
+     * reviewedAt and rejectionReason (why it needs changes, or null). When required is true and status is NOT_STARTED, submit it before creating the
+     * group's first toll-free brand.
+     *
+     * @param string $groupId The ID of the group whose business verification to get
+     * @param array $options Additional request options
+     * @return array The response from the server
+     * @throws \SignalHouse\SDK\Exceptions\ValidationException If groupId is missing
+     */
+    public function getBusinessVerification(string $groupId, array $options = []): array
+    {
+        $this->client->require(['groupId' => $groupId]);
+        $safeGroupId = rawurlencode($groupId);
+        return $this->client->request("/brand/business-verification/{$safeGroupId}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
+     * Submit or update a group's business verification. Allowed when it is not started or needs changes.
+     * Review usually takes 1–2 business days; the group's toll-free brands stay pending until it is verified.
+     *
+     * $details keys: businessName, businessType, industry, registrationType, registrationNumber, website,
+     * street, optional street2, city, state (2-letter state or province code), postalCode, country ('US'
+     * or 'CA') and representative (firstName, lastName, email, phone, jobTitle, jobLevel).
+     * representative.phone must be E.164 with an optional leading '+' and no spaces, parentheses or
+     * hyphens (e.g. '+17025550100').
+     *
+     * @param string $groupId The ID of the group whose business verification to submit (the caller's active group)
+     * @param array $details The business verification details (see JS SDK BusinessVerificationDetails for fields)
+     * @param array $options Additional request options
+     * @return array The response from the server: a 202 with the business verification, now SUBMITTING
+     *               (the same shape as getBusinessVerification)
+     * @throws \SignalHouse\SDK\Exceptions\ValidationException If groupId is missing
+     */
+    public function submitBusinessVerification(string $groupId, array $details, array $options = []): array
+    {
+        $this->client->require(['groupId' => $groupId, 'details' => $details]);
+        $safeGroupId = rawurlencode($groupId);
+        return $this->client->request("/brand/business-verification/{$safeGroupId}", array_merge([
+            'method' => 'PUT',
+            'body' => $details,
         ], $options));
     }
 

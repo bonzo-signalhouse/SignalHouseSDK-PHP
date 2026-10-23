@@ -239,7 +239,8 @@ class Campaigns
      * registrationType is forced to TOLL_FREE server-side; TFN-specific fields live under
      * $campaignData['tollFree'] (useCase, messageVolume, programSummary, exampleMessage,
      * customerCareEmail, optInImageURLs, optional optIns / multiNumberReason / useCases / channels / landingId). phoneNumbers must
-     * list 1-5 Toll-Free numbers, locked to the campaign once assigned.
+     * list 1 up to the brand's tollFree.maxNumbersPerCampaign Toll-Free numbers (at most 5), on the brand's toll-free
+     * carrier, or the campaign is refused. They are locked to the campaign once assigned.
      *
      * @param array $campaignData The toll-free campaign data (see JS SDK CreateTollFreeCampaignData for fields)
      * @param array $options Additional request options

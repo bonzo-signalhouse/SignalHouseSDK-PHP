@@ -510,8 +510,11 @@ class Messages
     /**
      * Fetch the latest upstream carrier delivery report for a set of messages by ID
      *
-     * Useful for reconciling messages stuck in a non-terminal state. SMS and MMS messages are looked
-     * up against the carrier; other message types are returned with their stored status.
+     * Useful for reconciling messages stuck in a non-terminal state. Outbound SMS and MMS messages sent
+     * from numbers on the carrier whose delivery logs we read are looked up there (the logs are kept about
+     * 48 hours); every other message, including P2P messages and messages sent from numbers on other
+     * carriers, is returned with its stored status and upstreamReportAvailable false. The request fails
+     * with a 500 when the sending numbers can't be read.
      *
      * @param string[] $messageIds The message IDs to fetch carrier delivery reports for (1-100)
      * @param array $options Additional request options
