@@ -140,12 +140,54 @@ BILLING  ($signalHouse->billing)
 
 BRANDS  ($signalHouse->brands)
 --------------------------------------------------------------------------------
-  getBrands(?string $id, ?string $subgroupId, ?string $groupId,
-      ?int $page, ?int $limit, ?string $status, ?array $options)
-    List brands with filters.
+  getBrands(array $params = [], array $options = [])
+    List brands with filters. $params keys: id, subgroupId, groupId, page,
+    limit, status, registrationType, currentTollFreeCarrier (bool).
+    id is a brand lookup id. registrationType filters by "TEN_DLC",
+    "TOLL_FREE", or "SHORT_CODE".
+    currentTollFreeCarrier: with groupId or subgroupId, true returns only the
+    toll-free brands a new toll-free campaign in that group can use.
 
   createBrand(array $brandData, ?array $options)
     Create a new 10DLC brand.
+
+  getBusinessVerification(string $groupId, ?array $options,
+      ?string $subgroupId)
+    Get a group's business verification: whether its toll-free brands need
+    one, its status and the submitted details.
+    Sends a GET to /brand/business-verification/:groupId, adding
+    ?subgroupId= only when $subgroupId is given.
+    Returns 200: { groupId, subgroupId, required, status, details,
+    submittedAt, reviewedAt, rejectionReason }. subgroupId is present only
+    when the verification belongs to one subgroup. required says whether the
+    group's new toll-free brands need one; status is NOT_STARTED,
+    SUBMITTING, IN_REVIEW, VERIFIED or NEEDS_CHANGES; rejectionReason says
+    why it needs changes, or is null.
+    Some groups verify each subgroup's business separately: a platform whose
+    subgroups are separate businesses, set up by Signal House. For those
+    groups $subgroupId is required (400 without it). Any other group has one
+    business verification for all its subgroups, so a $subgroupId is only
+    checked to be in the group. 404 when the subgroup isn't in the group.
+    Pass it by name:
+      $signalHouse->brands->getBusinessVerification('G1', subgroupId: 'S1234567');
+
+  submitBusinessVerification(string $groupId, array $details,
+      ?array $options, ?string $subgroupId)
+    Submit or update a group's business verification. Allowed when it is not
+    started or needs changes. Review usually takes 1–2 business days; the
+    group's toll-free brands stay pending until it is verified.
+    Sends a PUT to /brand/business-verification/:groupId with $details as the
+    body, adding ?subgroupId= only when $subgroupId is given. $groupId must
+    be the caller's active group.
+    $details keys: businessName, businessType, industry, registrationType,
+    registrationNumber, website, street, street2 (optional), city, state,
+    postalCode, country ("US" or "CA") and representative (firstName,
+    lastName, email, phone in E.164, jobTitle, jobLevel).
+    A group that verifies each subgroup's business separately (see
+    getBusinessVerification) must pass $subgroupId (400 without it), and
+    only that subgroup's toll-free brands follow the verification. 404 when
+    the subgroup isn't in the group; 400 when it isn't active.
+    Returns 202 with the getBusinessVerification shape (status SUBMITTING).
 
   updateBrand(string $brandId, array $brandData, ?array $options)
     Update brand information.
@@ -299,11 +341,13 @@ NOTIFICATIONS  ($signalHouse->notifications)
 
 NUMBERS  ($signalHouse->numbers)
 --------------------------------------------------------------------------------
-  getPhoneNumbers(?string $phoneNumber, ?string $campaignId,
-      ?string $registrationId, ?string $brandId, ?string $subgroupId,
-      ?string $groupId, ?int $page, ?int $limit, ?array $options)
-    List your phone numbers with filters.
+  getPhoneNumbers(array $params = [], array $options = [])
+    List your phone numbers with filters. $params keys: phoneNumber,
+    campaignId, registrationId, brandId, subgroupId, groupId, page, limit,
+    currentTollFreeCarrier (bool).
     registrationId: filter to numbers provisioned under this registration.
+    currentTollFreeCarrier: with groupId or subgroupId, true returns only the
+    toll-free numbers a new toll-free campaign in that group can use.
 
   getNumberHealth(string $phoneNumber, ?array $options)
     Get the portal-parity health score (1–10) for an owned phone number.
@@ -322,6 +366,19 @@ NUMBERS  ($signalHouse->numbers)
   updatePhoneNumber(string $phoneNumber, array $updateData,
       ?array $options)
     Update phone number details (e.g., friendly name).
+
+  getCallerName(string $phoneNumber, ?array $options)
+    Get the number's outbound caller name (GET /number/:phoneNumber/cnam).
+    Returns { phoneNumber, cnam, autoApply, eligible, ineligibleReason }.
+
+  setCallerName(string $phoneNumber, string $name, ?string $brandId = null,
+      ?array $options)
+    Set the number's outbound caller name (PUT /number/:phoneNumber/cnam).
+    $brandId only for numbers with no campaign; sent only when provided.
+
+  deleteCallerName(string $phoneNumber, ?array $options)
+    Remove the number's own caller name (DELETE /number/:phoneNumber/cnam);
+    falls back to the auto-applied name if the subgroup has auto-apply on.
 
   assignPhoneNumberToCampaign(string $campaignId, array $phoneNumbers,
       ?array $options)
@@ -395,6 +452,9 @@ SUBGROUPS  ($signalHouse->subgroups)
     $updateData may include optional carrierIdFamily and carrierIdRegion.
     Setting carrierIdFamily or carrierIdRegion requires signalhouse_api,
     signalhouse_admin, signalhouse_user, api, admin, developer, or billing role.
+    $updateData may also include cnamAutoApply (bool) and cnamBrandId (string
+    or null) for caller name auto-apply. Setting them requires signalhouse_api,
+    signalhouse_admin, signalhouse_user, api, admin, or developer role.
 
   deleteSubgroup(string $id, ?array $options)
     Delete (deactivate) a subgroup.
@@ -792,3 +852,64 @@ LANGUAGE EXAMPLE
   $signalHouse->messages->getMessages(['region' => ['US', 'GB'],
       'regionScopes' => [['region' => 'GB', 'channels' => ['virtualLongCode']]]]);
   $signalHouse->messages->getAnalyticsFilterOptions(['groupId' => 'G1', 'region' => 'GB']);
+
+
+TEMPLATES
+--------------------------------------------------------------------------------
+Versioned, raw message templates. One namespace, templates, on /template.
+The channel is read from the body on create; list takes an optional channel
+filter and capabilities an optional channel. Every call answers 404 while the
+environment's RCS switch is off. Every call carries groupId: GET in the query string, JSON
+writes in the body, the media upload as a form field.
+
+A template has a head {templateId, groupId, channel, name, tag,
+archivedAt, draftVersion, publishedVersion, revision,
+createdBy, createdAt, updatedAt} and numbered versions
+{version, state (DRAFT|PUBLISHED), body, contentHash, publishedAt, ...}. Reads
+of one template return {head, version}; lists return {data, total, page, limit}
+with summaries that add state and hasUnpublishedChanges.
+
+create creates draft version 1 from name (1-120 chars, unique per
+group and channel), body and optional tag (201). get takes version: a
+number, "draft" or "published"; omitted reads the published version, else the
+draft, and an explicit selector never falls back (404). update saves the
+draft from name / tag / body; writes apply directly (last write wins). Leave the
+tag key out to keep it; set it to null to clear it. A write to an archived
+template answers 409 {code:"TEMPLATE_ARCHIVED"} and a name already used in the
+group and channel 409 {code:"TEMPLATE_NAME_TAKEN"}. publish takes only
+groupId and always publishes the current draft; it answers 400
+{code:"TEMPLATE_INVALID", errors, warnings} for an incomplete draft, 409
+{code:"NO_DRAFT"} when there is none and 409 {code:"DRAFT_CHANGED"} when the
+draft changed while it was being published (publish again). archive takes only
+groupId.
+validate checks exactly one of body or version and never writes. capabilities returns the
+server's block kinds, action types, limits and media rules, and with provider
+(infobip|sinch) that provider's limits and unsupported features.
+uploadMedia sends multipart fields file and groupId and returns
+{mediaId, url, bytes, mimeType, kind, width, height, ...} (201).
+
+The body is the raw RcsTemplateBody {channel:"rcs", contentFormat:"rcs.blocks.v1",
+content:{blocks}, variables, defaults, fallback}; the SDK sends it unchanged and
+offers no conversion, duplication or starter helpers. Unknown keys are rejected.
+Placeholders are {{key}}; {{sender_name}} is reserved. Writes accept an
+idempotency key. Reads (including validate and capabilities) need
+admin, developer, api, billing or user; writes need admin, developer or api.
+
+LANGUAGE EXAMPLE
+  $body = [
+      'channel' => 'rcs', 'contentFormat' => 'rcs.blocks.v1',
+      'content' => ['blocks' => [['id' => 'b1', 'kind' => 'text', 'text' => 'Hi {{first_name}}']]],
+      'variables' => [['key' => 'first_name', 'type' => 'text', 'required' => true]],
+  ];
+  $created = $signalHouse->templates->create(['groupId' => 'G1', 'name' => 'Welcome', 'body' => $body],
+      ['idempotencyKey' => $uuid]);
+  $head = $created['data']['head'];
+  $signalHouse->templates->update($head['templateId'], [
+      'groupId' => 'G1',
+      'tag' => null,   // null clears the tag; leave the key out to keep it
+  ]);
+  $signalHouse->templates->validate($head['templateId'], ['groupId' => 'G1', 'version' => 'draft']);
+  $signalHouse->templates->publish($head['templateId'], ['groupId' => 'G1']);
+  $signalHouse->templates->list(['groupId' => 'G1', 'channel' => 'rcs', 'state' => 'PUBLISHED']);
+  $signalHouse->templates->capabilities(['groupId' => 'G1', 'provider' => 'infobip']);
+  $signalHouse->templates->uploadMedia(['groupId' => 'G1', 'file' => 'hero.png', 'fileName' => 'hero.png']);

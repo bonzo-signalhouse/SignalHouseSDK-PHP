@@ -178,7 +178,8 @@ class Billing
     }
 
     /**
-     * Get the fee schedule for a specific group
+     * Get the fee schedule for a specific group.
+     * When the group is on a custom volume-tiered plan, the response also includes volumePricing: tiers, the current period's dates, count and minimum, ramp, and current rate (rates in microdollars per segment).
      *
      * @param string $groupId The ID of the group
      * @param array $options Additional request options

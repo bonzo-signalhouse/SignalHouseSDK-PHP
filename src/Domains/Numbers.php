@@ -27,21 +27,26 @@ class Numbers
                 }
 
                 /**
-                 * Change the status of a port-in request
+                 * Change the status of a port-in request. Infobip exposes no porting-status API
+                 * or webhook, so ON_HOLD and its reason are always staff-entered here.
                  *
                  * @param string $portingId The ID of the port-in request
-                 * @param string $status The new status to set
+                 * @param string $status The new status to set (PENDING, IN_PROGRESS, ON_HOLD, REJECTED)
                  * @param string|null $description Optional description for the status change
                  * @param array $options Additional request options
+                 * @param string|null $onHoldReason Required when status is ON_HOLD (DOCUMENTATION_MISMATCH, ACCOUNT_INFO_INCORRECT, CARRIER_REJECTED, PENDING_CUSTOMER_ACTION, OTHER). Appended last, after $options, so existing positional callers (e.g. changePortingStatus($id, $status, $description, ['token' => $token])) are unaffected.
                  * @return array The response from the server
                  */
-                public function changePortingStatus(string $portingId, string $status, ?string $description = null, array $options = []): array
+                public function changePortingStatus(string $portingId, string $status, ?string $description = null, array $options = [], ?string $onHoldReason = null): array
                 {
                     $this->client->require(['portingId' => $portingId, 'status' => $status]);
                     $safePortingId = rawurlencode($portingId);
                     $body = ['status' => $status];
                     if ($description !== null) {
                         $body['description'] = $description;
+                    }
+                    if ($onHoldReason !== null) {
+                        $body['onHoldReason'] = $onHoldReason;
                     }
                     return $this->client->request("/number/portin/{$safePortingId}/status", array_merge([
                         'method' => 'PUT',
@@ -340,7 +345,7 @@ class Numbers
      *
      * @param string|null $groupId Filter by group ID
      * @param string|null $phoneNumber Filter by phone number
-     * @param string|null $status Filter by status (PENDING, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED)
+     * @param string|null $status Filter by status (PENDING, IN_PROGRESS, ON_HOLD, REJECTED, SUCCESS)
      * @param int|null $page Page number for pagination (default: 1)
      * @param int|null $limit Items per page (default: 20)
      * @param array $options Additional request options

@@ -106,16 +106,25 @@ class Brands
      * reviewedAt and rejectionReason (why it needs changes, or null). When required is true and status is NOT_STARTED, submit it before creating the
      * group's first toll-free brand.
      *
+     * Some groups verify each subgroup's business separately: a platform whose subgroups are separate
+     * businesses, set up by Signal House. For those groups $subgroupId is required (400 without it), and
+     * the response data also holds subgroupId, the subgroup whose business it describes. Any other group
+     * has one business verification for all its subgroups, so a $subgroupId is only checked to be in the
+     * group. A subgroup outside the group answers 404.
+     *
      * @param string $groupId The ID of the group whose business verification to get
      * @param array $options Additional request options
+     * @param string|null $subgroupId The subgroup whose business verification to get; required for a group
+     *     that verifies each subgroup's business separately. Sent as a query parameter only when given
      * @return array The response from the server
      * @throws \SignalHouse\SDK\Exceptions\ValidationException If groupId is missing
      */
-    public function getBusinessVerification(string $groupId, array $options = []): array
+    public function getBusinessVerification(string $groupId, array $options = [], ?string $subgroupId = null): array
     {
         $this->client->require(['groupId' => $groupId]);
         $safeGroupId = rawurlencode($groupId);
-        return $this->client->request("/brand/business-verification/{$safeGroupId}", array_merge([
+        $queryString = $this->client->getQueryString(['subgroupId' => $subgroupId]);
+        return $this->client->request("/brand/business-verification/{$safeGroupId}{$queryString}", array_merge([
             'method' => 'GET',
         ], $options));
     }
@@ -130,20 +139,88 @@ class Brands
      * representative.phone must be E.164 with an optional leading '+' and no spaces, parentheses or
      * hyphens (e.g. '+17025550100').
      *
+     * A group that verifies each subgroup's business separately (see getBusinessVerification) must pass
+     * $subgroupId (400 without it), and only that subgroup's toll-free brands follow the verification. A
+     * given $subgroupId must be in the group (404 otherwise) and active (400 otherwise).
+     *
      * @param string $groupId The ID of the group whose business verification to submit (the caller's active group)
      * @param array $details The business verification details (see JS SDK BusinessVerificationDetails for fields)
      * @param array $options Additional request options
+     * @param string|null $subgroupId The subgroup whose business verification to submit; required for a group
+     *     that verifies each subgroup's business separately. Sent as a query parameter only when given
      * @return array The response from the server: a 202 with the business verification, now SUBMITTING
      *               (the same shape as getBusinessVerification)
      * @throws \SignalHouse\SDK\Exceptions\ValidationException If groupId is missing
      */
-    public function submitBusinessVerification(string $groupId, array $details, array $options = []): array
+    public function submitBusinessVerification(string $groupId, array $details, array $options = [], ?string $subgroupId = null): array
     {
         $this->client->require(['groupId' => $groupId, 'details' => $details]);
         $safeGroupId = rawurlencode($groupId);
-        return $this->client->request("/brand/business-verification/{$safeGroupId}", array_merge([
+        $queryString = $this->client->getQueryString(['subgroupId' => $subgroupId]);
+        return $this->client->request("/brand/business-verification/{$safeGroupId}{$queryString}", array_merge([
             'method' => 'PUT',
             'body' => $details,
+        ], $options));
+    }
+
+    /**
+     * Get a group's toll-free ISV account: its own top-level account at the toll-free provider, which
+     * Signal House staff register for a platform whose subgroups are separate businesses.
+     * signalhouse_api, signalhouse_admin or signalhouse_user only.
+     *
+     * The response data holds groupId, accountSid, apiKeySid, primaryProfileSid (the account's approved
+     * primary business profile), createdAt and updatedAt, or is null when the group has none. The API key
+     * secret is never returned. A group that doesn't exist or isn't active answers 404.
+     *
+     * @param string $groupId The ID of the group whose ISV account to get
+     * @param array $options Additional request options
+     * @return array The response from the server
+     * @throws \SignalHouse\SDK\Exceptions\ValidationException If groupId is missing
+     */
+    public function getTollFreeIsvAccount(string $groupId, array $options = []): array
+    {
+        $this->client->require(['groupId' => $groupId]);
+        $safeGroupId = rawurlencode($groupId);
+        return $this->client->request("/brand/toll-free-isv-account/{$safeGroupId}", array_merge([
+            'method' => 'GET',
+        ], $options));
+    }
+
+    /**
+     * Register a group's toll-free ISV account, or replace the API key of the one already registered.
+     * signalhouse_admin only.
+     *
+     * The toll-free provider checks the account and key before they are stored, and finds the account's
+     * approved primary business profile itself; a refused account or key answers 400 with the reason.
+     * Register it before setting the group's toll-free provider: once the group has records with that
+     * provider, only the API key of the registered account can be replaced.
+     *
+     * @param string $groupId The ID of the group whose ISV account to register
+     * @param string $accountSid The ISV's own top-level account SID (AC followed by 32 lowercase hex characters)
+     * @param string $apiKeySid A Main API key SID in that account (SK followed by 32 lowercase hex characters)
+     * @param string $apiKeySecret The API key's secret (1 to 128 characters); stored encrypted and never returned
+     * @param array $options Additional request options
+     * @return array The response from the server: the stored ISV account, the same shape as
+     *               getTollFreeIsvAccount
+     * @throws \SignalHouse\SDK\Exceptions\ValidationException If groupId, accountSid, apiKeySid or apiKeySecret is missing
+     */
+    public function setTollFreeIsvAccount(
+        string $groupId,
+        string $accountSid,
+        string $apiKeySid,
+        string $apiKeySecret,
+        array $options = []
+    ): array {
+        $this->client->require([
+            'groupId' => $groupId,
+            'accountSid' => $accountSid,
+            'apiKeySid' => $apiKeySid,
+            'apiKeySecret' => $apiKeySecret,
+        ]);
+        $safeGroupId = rawurlencode($groupId);
+        return $this->client->request("/brand/toll-free-isv-account/{$safeGroupId}", array_merge([
+            'method' => 'PUT',
+            'body' => ['accountSid' => $accountSid, 'apiKeySid' => $apiKeySid, 'apiKeySecret' => $apiKeySecret],
         ], $options));
     }
 

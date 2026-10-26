@@ -53,6 +53,10 @@ $brands = $sdk->brands->getBrands(['groupId' => 'G12345678']);
 // submit it with submitBusinessVerification before creating the group's first toll-free brand
 $verification = $sdk->brands->getBusinessVerification('G12345678');
 
+// A group that verifies each subgroup's business separately names the subgroup, for both
+// getBusinessVerification and submitBusinessVerification
+$subgroupVerification = $sdk->brands->getBusinessVerification('G12345678', subgroupId: 'S1234567');
+
 // Check wallet balance
 $wallet = $sdk->billing->getWallet('G12345678');
 ```
@@ -93,6 +97,22 @@ $sdk->campaigns->admin->approveCampaign('campaign-id');
 
 // Admin: list all groups
 $sdk->groups->admin->getGroups(['page' => 1, 'limit' => 20]);
+```
+
+Staff-only brand methods sit on `$sdk->brands` itself, and the API checks the caller's role:
+
+```php
+// Staff: read a group's toll-free ISV account (null when it has none; the API key secret is never returned)
+$isvAccount = $sdk->brands->getTollFreeIsvAccount('G12345678');
+
+// signalhouse_admin only: register it before setting the group's toll-free provider
+// (once the group has records with that provider, only the API key can be replaced)
+$sdk->brands->setTollFreeIsvAccount(
+    groupId: 'G12345678',
+    accountSid: 'AC...',
+    apiKeySid: 'SK...',
+    apiKeySecret: 'your-api-key-secret'
+);
 ```
 
 ## Response Format

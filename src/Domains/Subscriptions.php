@@ -84,6 +84,19 @@ class Subscriptions
                         'body' => $subscriptionData,
                     ], $options));
                 }
+
+                /**
+                 * Update volume tiers, ramp, and monthly minimum on an active custom subscription
+                 */
+                public function updateCustomSubscription(string $groupId, array $updateData, array $options = []): array
+                {
+                    $this->client->require(['groupId' => $groupId, 'updateData' => $updateData]);
+                    $safeGroupId = rawurlencode($groupId);
+                    return $this->client->request("/subscription/user/custom/{$safeGroupId}", array_merge([
+                        'method' => 'PUT',
+                        'body' => $updateData,
+                    ], $options));
+                }
             };
         }
     }
